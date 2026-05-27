@@ -44,8 +44,8 @@
             height: 100%;
             display: none; /* AR起動前は非表示 */
             z-index: 10;
-            /* 透明なときもタッチイベントを100%確実に拾うために auto に変更 */
-            pointer-events: auto; 
+            /* 【重要】コンテナ自体はタッチをスルーさせ、右上の✕ボタンを押せるようにする */
+            pointer-events: none; 
         }
 
         /* 4秒無操作でフェードアウトするためのボタン共通スタイル */
@@ -57,6 +57,8 @@
             transition: opacity 0.4s ease, transform 0.4s ease, visibility 0.4s;
             opacity: 0;
             visibility: hidden;
+            /* ボタン自体は個別にタップを有効にする */
+            pointer-events: auto; 
         }
 
         /* 画面操作があった時に現れるクラス */
@@ -110,6 +112,7 @@
     camera-controls
     autoplay
     shadow-intensity="1"
+    preserve-drawing-buffer
 >
     <button slot="ar-button" id="ar-button">AR撮影</button>
 
@@ -195,14 +198,19 @@
         }
     });
 
-    // ─── 【最重要】フェードアウト後も絶対にタッチを逃さない常時監視ロジック ───
-    
-    // UIレイヤーの背景（ボタン以外の場所）をタッチ・スワイプしたとき
-    overlayUI.addEventListener('touchstart', (event) => {
-        // 押した対象がボタン自体（ポーズ切り替えやシャッター）でなければ、UIを即座に復活させる
-        if (event.target !== poseBtn && event.target !== shutterBtn) {
-            wakeUpUI();
+    // ─── 【改善】右上の✕ボタンを邪魔せず、画面操作（ドラッグやタップ）でUIを復活させる監視 ───
+    // WebXRの3D空間のインタラクション（モデル操作など）を検知してUIを呼び戻す
+    viewer.addEventListener('camera-change', () => {
+        wakeUpUI();
+    });
+
+    // 画面がタッチされたら即座にUIを呼び戻す（WebXRのセッション内でも有効）
+    window.addEventListener('touchstart', (event) => {
+        // 右上の「✕」ボタン（目安として画面上部かつ右側）が押された時は、UIを無理に起こさないようにスルー
+        if (event.touches[0].clientX > window.innerWidth * 0.8 && event.touches[0].clientY < 60) {
+            return; 
         }
+        wakeUpUI();
     }, { passive: true });
 
 
@@ -225,8 +233,8 @@
         await new Promise(resolve => setTimeout(resolve, 200));
 
         try {
-            // 3. UIが一切写っていない、最高の綺麗なAR画像を撮影
-            const blob = await viewer.toBlob({ idealAspect: true });
+            // 3. UIが一切写っていない、最高の綺麗なAR画像を撮影（バッファ保持により真っ黒を回避）
+            const blob = await viewer.toBlob({ idealAspect: true, mimeType: 'image/png' });
             const url = URL.createObjectURL(blob);
             
             // 4. スマホへの自動保存
