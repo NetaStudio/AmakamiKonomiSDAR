@@ -56,28 +56,29 @@
 <script>
     const viewer = document.querySelector('#character-viewer');
     
-    // モーション名の定義（Blenderで設定した名前と一致させてください）
+    // モーション名の定義
     const IDLE_ANIM = "idle";
     const REACTION_ANIMS = ["wave", "jump"];
     
     let currentTrackIndex = 0; // 次に再生するモーションのインデックス
-    let isReacting = false;     // モーション再生中かどうかのフラグ
+    let isReacting = false;     // waveやjumpの「特別なアクション」を実行中かどうかのフラグ
 
     // アニメーションを順番に切り替える共通処理
     function triggerNextAnimation() {
-        if (isReacting) return; // 再生中なら何もしない
+        // すでに wave や jump を再生中（2.5秒以内）なら、連打されても無視する
+        if (isReacting) return; 
         
-        isReacting = true;
+        isReacting = true; // 特別なアクション開始！
         const chosenAnim = REACTION_ANIMS[currentTrackIndex];
         viewer.animationName = chosenAnim;
 
         // 次回タップ用にインデックスを進める（wave → jump → wave...）
         currentTrackIndex = (currentTrackIndex + 1) % REACTION_ANIMS.length;
 
-        // 2.5秒後に自動的に待機モーション(idle)に戻す
+        // 2.5秒後に自動的に待機モーション(idle)に戻し、次のタップを受け付け可能にする
         setTimeout(() => {
             viewer.animationName = IDLE_ANIM;
-            isReacting = false;
+            isReacting = false; // 特別なアクション終了、タップ受付再開！
         }, 2500);
     }
 
@@ -102,4 +103,12 @@
             if (xrSession) {
                 // AR空間内で画面のどこかをタッチ（セレクト）されたときのイベント
                 xrSession.addEventListener('select', () => {
-                    // 移動操作とのバッティングを避けるため、少しだけ遅らせる
+                    triggerNextAnimation();
+                });
+            }
+        }
+    });
+</script>
+
+</body>
+</html>
