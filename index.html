@@ -56,42 +56,62 @@
 <script>
     const viewer = document.querySelector('#character-viewer');
     
-    let animationsList = [];
+    // 実際に再生に使う、確定したアニメーション名を入れる変数
+    let realIdleName = "";
+    let realReactionAnims = [];
+    
     let currentTrackIndex = 0; 
     let isReacting = false;     
 
-    // 3Dモデルが読み込まれたら、中身のアニメーション名を自動で全取得
+    // 3Dモデルが読み込まれたら実行
     viewer.addEventListener('load', () => {
-        animationsList = viewer.availableAnimations;
-        console.log("読み込まれたアニメーション一覧:", animationsList);
+        const available = viewer.availableAnimations;
+        console.log("見つかったアニメーション一覧:", available);
+
+        // Mayaの名前（pCube1|idle...等）が残っていても、文字が含まれていれば自動判別
+        const idleTrack = available.find(name => name.toLowerCase().includes('idle'));
+        const waveTrack = available.find(name => name.toLowerCase().includes('wave'));
+        const jumpTrack = available.find(name => name.toLowerCase().includes('jump'));
+
+        // 1. 待機(idle)モーションの割り当て（見つからなければ0番目）
+        realIdleName = idleTrack || available[0];
         
-        // ファイル内にアニメーションが1つでもあれば、それを最初の待機(idle)として再生
-        if (animationsList.length > 0) {
-            viewer.animationName = animationsList[0];
+        // 2. リアクション（wave, jump）のリストを作成
+        if (waveTrack) realReactionAnims.push(waveTrack);
+        if (jumpTrack) realReactionAnims.push(jumpTrack);
+
+        // もし文字検索でヒットしなかった場合のフォールバック（存在するものを全部入れる）
+        if (realReactionAnims.length === 0) {
+            realReactionAnims = available.filter(name => name !== realIdleName);
+        }
+
+        // 初期モーションとして正しいidleを再生
+        if (realIdleName) {
+            viewer.animationName = realIdleName;
             viewer.play();
         }
     });
 
-    // モーションを強制的に切り替える処理
+    // モーションを順番に切り替える処理
     function triggerNextAnimation() {
-        // アニメーションがファイル内に2つ以上なければ、タップしても切り替えをスキップ
-        if (animationsList.length <= 1 || isReacting) return; 
+        // リアクション用モーションがない、または再生中ならスキップ
+        if (realReactionAnims.length === 0 || isReacting) return; 
         
         isReacting = true; 
 
-        // 次のトラック番号に進める（ファイル内のアニメーション数をループ）
-        currentTrackIndex = (currentTrackIndex + 1) % animationsList.length;
-        
-        // Blender側の名前に左右されず、その番号のアニメーションを強制再生
-        const chosenAnim = animationsList[currentTrackIndex];
-        console.log("モーションを切り替えます:", chosenAnim);
+        // 登録されているリアクションを順番に選択
+        const chosenAnim = realReactionAnims[currentTrackIndex];
+        console.log("アクション再生:", chosenAnim);
         viewer.animationName = chosenAnim;
         viewer.play();
 
-        // 2.5秒後に自動的に最初のモーション（1番目に登録されている待機モーション）に戻す
+        // 次回タップ用にインデックスを進める
+        currentTrackIndex = (currentTrackIndex + 1) % realReactionAnims.length;
+
+        // 2.5秒後に自動的に正しい待機モーション(idle)に戻す
         setTimeout(() => {
-            if (animationsList.length > 0) {
-                viewer.animationName = animationsList[0];
+            if (realIdleName) {
+                viewer.animationName = realIdleName;
                 viewer.play();
             }
             isReacting = false; 
@@ -100,10 +120,7 @@
 
     // ① 通常ブラウザ画面（Web画面）でのキャラタップ判定
     viewer.addEventListener('click', (event) => {
-        // 左上のARボタンを押したときは、アニメーション切り替えを走らせない
         if (event.target.closest('#ar-button')) return;
-
-        // タップした位置に3Dモデルがあるか判定
         const hit = viewer.positionAndNormalAtPixel(event.clientX, event.clientY);
         if (hit) {
             triggerNextAnimation();
@@ -115,7 +132,6 @@
         if (event.detail.status === 'session-started') {
             const xrSession = viewer.xrSession; 
             if (xrSession) {
-                // AR空間内で画面がタッチ（セレクト）されたとき、上の切り替え処理を走らせる
                 xrSession.addEventListener('select', () => {
                     triggerNextAnimation();
                 });
