@@ -56,36 +56,25 @@
 <script>
     const viewer = document.querySelector('#character-viewer');
     
-    // 実際に再生に使う、確定したアニメーション名を入れる変数
     let realIdleName = "";
     let realReactionAnims = [];
-    
     let currentTrackIndex = 0; 
     let isReacting = false;     
 
     // 3Dモデルが読み込まれたら実行
     viewer.addEventListener('load', () => {
         const available = viewer.availableAnimations;
-        console.log("見つかったアニメーション一覧:", available);
+        console.log("見つかった全アニメーション名:", available);
 
-        // Mayaの名前（pCube1|idle...等）が残っていても、文字が含まれていれば自動判別
+        // 1. 文字列に「idle」が含まれるものを待機モーションに決定
         const idleTrack = available.find(name => name.toLowerCase().includes('idle'));
-        const waveTrack = available.find(name => name.toLowerCase().includes('wave'));
-        const jumpTrack = available.find(name => name.toLowerCase().includes('jump'));
+        realIdleName = idleTrack || available[0]; // 万が一見つからなければ0番目
 
-        // 1. 待機(idle)モーションの割り当て（見つからなければ0番目）
-        realIdleName = idleTrack || available[0];
-        
-        // 2. リアクション（wave, jump）のリストを作成
-        if (waveTrack) realReactionAnims.push(waveTrack);
-        if (jumpTrack) realReactionAnims.push(jumpTrack);
+        // 2. 【超重要】「idleではない、残りのすべてのモーション」を無条件でリアクションリストに入れる
+        realReactionAnims = available.filter(name => name !== realIdleName);
+        console.log("登録されたリアクション一覧:", realReactionAnims);
 
-        // もし文字検索でヒットしなかった場合のフォールバック（存在するものを全部入れる）
-        if (realReactionAnims.length === 0) {
-            realReactionAnims = available.filter(name => name !== realIdleName);
-        }
-
-        // 初期モーションとして正しいidleを再生
+        // 初期モーションとして idle をループ再生
         if (realIdleName) {
             viewer.animationName = realIdleName;
             viewer.play();
@@ -94,21 +83,22 @@
 
     // モーションを順番に切り替える処理
     function triggerNextAnimation() {
-        // リアクション用モーションがない、または再生中ならスキップ
+        // リアクション用のモーションがファイル内に存在しなければ処理しない
         if (realReactionAnims.length === 0 || isReacting) return; 
         
         isReacting = true; 
 
-        // 登録されているリアクションを順番に選択
+        // リストの中から順番にアクションを選択して強制再生
         const chosenAnim = realReactionAnims[currentTrackIndex];
-        console.log("アクション再生:", chosenAnim);
+        console.log("★アニメーション移行を実行:", chosenAnim);
+        
         viewer.animationName = chosenAnim;
         viewer.play();
 
         // 次回タップ用にインデックスを進める
         currentTrackIndex = (currentTrackIndex + 1) % realReactionAnims.length;
 
-        // 2.5秒後に自動的に正しい待機モーション(idle)に戻す
+        // 2.5秒後に自動的に最初の待機モーション(idle)に戻す
         setTimeout(() => {
             if (realIdleName) {
                 viewer.animationName = realIdleName;
