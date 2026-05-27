@@ -44,8 +44,7 @@
             height: 100%;
             display: none; /* AR起動前は非表示 */
             z-index: 10;
-            /* 【重要】コンテナ自体はタッチをスルーさせ、右上の✕ボタンを押せるようにする */
-            pointer-events: none; 
+            pointer-events: none; /* コンテナ自体はタッチをスルー（右上✕ボタンの邪魔をしない） */
         }
 
         /* 4秒無操作でフェードアウトするためのボタン共通スタイル */
@@ -57,8 +56,7 @@
             transition: opacity 0.4s ease, transform 0.4s ease, visibility 0.4s;
             opacity: 0;
             visibility: hidden;
-            /* ボタン自体は個別にタップを有効にする */
-            pointer-events: auto; 
+            pointer-events: auto; /* ボタン自体は個別にタップを有効化 */
         }
 
         /* 画面操作があった時に現れるクラス */
@@ -112,7 +110,6 @@
     camera-controls
     autoplay
     shadow-intensity="1"
-    preserve-drawing-buffer
 >
     <button slot="ar-button" id="ar-button">AR撮影</button>
 
@@ -176,7 +173,7 @@
         poseBtn.classList.add('active');
         shutterBtn.classList.add('active');
 
-        // 4秒間、何も操作がなければフェードアウト
+        // 4秒間、何も操作がなければ自動フェードアウト
         uiTimer = setTimeout(() => {
             fadeOutUI();
         }, 4000);
@@ -198,18 +195,19 @@
         }
     });
 
-    // ─── 【改善】右上の✕ボタンを邪魔せず、画面操作（ドラッグやタップ）でUIを復活させる監視 ───
-    // WebXRの3D空間のインタラクション（モデル操作など）を検知してUIを呼び戻す
-    viewer.addEventListener('camera-change', () => {
-        wakeUpUI();
-    });
-
-    // 画面がタッチされたら即座にUIを呼び戻す（WebXRのセッション内でも有効）
+    // ─── 【仕様4・修正】暴発を防ぎつつ、タップやドラッグ移動でUIを確実に復活させる ───
+    
+    // 画面に指が触れた瞬間（タップ）にUIを起こす
     window.addEventListener('touchstart', (event) => {
-        // 右上の「✕」ボタン（目安として画面上部かつ右側）が押された時は、UIを無理に起こさないようにスルー
+        // 右上の「✕」ボタンを避ける処理
         if (event.touches[0].clientX > window.innerWidth * 0.8 && event.touches[0].clientY < 60) {
             return; 
         }
+        wakeUpUI();
+    }, { passive: true });
+
+    // 画面上で指を動かしたとき（モデルの移動・回転・サイズ変更操作など）にUIを起こす
+    window.addEventListener('touchmove', () => {
         wakeUpUI();
     }, { passive: true });
 
@@ -233,24 +231,18 @@
         await new Promise(resolve => setTimeout(resolve, 200));
 
         try {
-            // 3. UIが一切写っていない、最高の綺麗なAR画像を撮影（バッファ保持により真っ黒を回避）
-            const blob = await viewer.toBlob({ idealAspect: true, mimeType: 'image/png' });
-            const url = URL.createObjectURL(blob);
+            // 3. 【真っ黒回避】model-viewer公式のARスクリーンショット専用メソッドを使用して保存
+            // これにより、現実のカメラ背景とモデルが合成された正しい画像が書き出されます
+            viewer.takeScreenshot();
             
-            // 4. スマホへの自動保存
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `konomi_AR_${new Date().getTime()}.png`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
         } catch (err) {
             console.error("撮影に失敗しました:", err);
         }
 
-        // 5. 撮影完了後、自動的にUIを画面に復帰させる
-        wakeUpUI();
+        // 4. 撮影処理の呼び出し後、自動的にUIを画面に復帰させる（少し長めのディレイ）
+        setTimeout(() => {
+            wakeUpUI();
+        }, 1000);
     }
 
     shutterBtn.addEventListener('touchstart', (event) => {
