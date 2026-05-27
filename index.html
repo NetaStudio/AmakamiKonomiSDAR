@@ -18,7 +18,7 @@
             background-color: #f0f0f0; 
         }
         
-        /* AR撮影ボタン（左上） */
+        /* AR起動前・撮影中 共通の左上「AR撮影」ボタン */
         #ar-button {
             position: absolute; 
             top: 20px;          
@@ -33,21 +33,22 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
 
-        /* 【新設】AR空間でも絶対に移動枠と被らない「アクションボタン」（右下） */
+        /* 【重要】AR撮影中（カメラ画面）でも絶対に消えない右下「ポーズ切り替え」ボタン */
         #action-button {
             position: absolute;
             bottom: 30px;
             right: 20px;
-            padding: 15px 28px;
-            background-color: rgba(0, 0, 0, 0.7); /* 暗めの半透明でARでも見やすく */
+            padding: 14px 24px;
+            background-color: rgba(0, 0, 0, 0.75); /* AR画面で見やすいように暗めの半透明 */
             color: #fff;
-            border: none;
+            border: 2px solid rgba(255, 255, 255, 0.5);
             border-radius: 30px;
             font-weight: bold;
-            font-size: 16px;
-            z-index: 9999; /* 最前面に配置 */
+            font-size: 15px;
+            z-index: 9999;
             cursor: pointer;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            display: block; /* 常に表示 */
         }
         #action-button:active {
             background-color: rgba(0, 0, 0, 0.9);
@@ -68,9 +69,9 @@
     shadow-intensity="1"
 >
     <button slot="ar-button" id="ar-button">AR撮影</button>
-</model-viewer>
 
-<button id="action-button">ポーズ切り替えポチッ</button>
+    <button slot="hotspot-action-btn" id="action-button">ポーズ切り替え</button>
+</model-viewer>
 
 <script>
     const viewer = document.querySelector('#character-viewer');
@@ -81,7 +82,7 @@
     let currentTrackIndex = 0; 
     let isReacting = false;     
 
-    // 3Dモデル読み込み完了時の自動解析
+    // 3Dモデル読み込み完了時にアニメーションを自動解析
     viewer.addEventListener('load', () => {
         const available = viewer.availableAnimations;
         console.log("見つかった全アニメーション名:", available);
@@ -90,7 +91,7 @@
         const idleTrack = available.find(name => name.toLowerCase().includes('idle'));
         realIdleName = idleTrack || available[0];
 
-        // idle以外のすべてのモーションをリアクションに
+        // idle以外のすべてのモーションをリアクション（wave, jump等）に
         realReactionAnims = available.filter(name => name !== realIdleName);
 
         if (realIdleName) {
@@ -106,11 +107,12 @@
         isReacting = true; 
 
         const chosenAnim = realReactionAnims[currentTrackIndex];
-        console.log("★ボタン経由でアニメーション移行を実行:", chosenAnim);
+        console.log("★AR画面からモーション切り替えを実行:", chosenAnim);
         
         viewer.animationName = chosenAnim;
         viewer.play();
 
+        // 次のタップ用にインデックスを進める
         currentTrackIndex = (currentTrackIndex + 1) % realReactionAnims.length;
 
         // 2.5秒後に自動的に最初の待機モーション(idle)に戻す
@@ -123,9 +125,16 @@
         }, 2500);
     }
 
-    // 【最重要】キャラのタップではなく、画面右下のHTMLボタンのクリックで発火させる
+    // AR撮影中（カメラ起動中）のボタンタップを確実に奪取する設定
+    // ※タッチの瞬間に判定を奪い、背後の3D空間（移動枠を出すシステム）への突き抜けを完全に防御します
+    actionBtn.addEventListener('touchstart', (event) => {
+        event.stopPropagation();
+        triggerNextAnimation();
+    }, { passive: true });
+
+    // 通常のPCブラウザ等でのテスト用クリックイベント
     actionBtn.addEventListener('click', (event) => {
-        event.stopPropagation(); // WebXR側のタッチイベントに伝播するのを完全に阻止
+        event.stopPropagation();
         triggerNextAnimation();
     });
 </script>
