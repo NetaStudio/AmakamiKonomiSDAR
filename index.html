@@ -18,82 +18,92 @@
             height: 100vh; 
             background-color: #f0f0f0; 
         }
-        
-        /* 基本スタイル：ボタンは最初から表示 */
-        .ar-ui-btn {
-            position: absolute;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            border: 2px solid rgba(255, 255, 255, 0.6);
-            border-radius: 30px;
-            z-index: 9999;
-            /* 画面外へスライドして消えるアニメーション設定 */
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
-            opacity: 1;
-        }
 
-        /* 【左下】ポーズ切り替えボタン */
-        #action-button {
-            bottom: 40px;
-            left: 20px;
-            padding: 14px 24px;
-            background-color: rgba(0, 0, 0, 0.75);
-            color: #fff;
-            font-size: 15px;
-            transform: translateY(0);
-        }
-
-        /* 【右下】UIを画面外に格納するボタン */
-        #hide-button {
-            bottom: 40px;
-            right: 20px;
-            padding: 14px 24px;
-            background-color: #fff;
-            color: #333;
-            font-size: 15px;
-            transform: translateY(0);
-        }
-
-        /* ─── 録画モード（UI格納時）のスタイル ─── */
-        /* ボタンを画面の下側の外（見えない場所）へ完全にスライド退避させる */
-        .ar-ui-btn.is-hidden {
-            transform: translateY(120px) !important;
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        /* 【新設：復活トリガー】UIが消えている間、画面最上部に配置される「見えない細い帯」 */
-        /* ここを直接タップすることで、モデルの移動枠（リング）を暴発させずにUIを復活させます */
-        #ui-reviver {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 50px; /* 上部の50ピクセル分だけのタッチエリア */
-            background-color: rgba(0, 0, 0, 0.01); /* ほぼ完全な透明（0にするとタップが反応しないため0.01） */
-            z-index: 99999;
-            display: none; /* 通常時は非表示 */
-            cursor: pointer;
-        }
-
-        /* 左上：AR起動ボタン（AR起動前のみ使用） */
+        /* ─── 【ご希望】AR撮影モード前のUI ─── */
+        /* AR撮影ボタンを左上だけに配置 */
         #ar-button {
             position: absolute; 
             top: 20px;          
             left: 20px;         
-            padding: 12px 24px; 
+            padding: 14px 28px; 
             background-color: #fff; 
             border-radius: 25px;
             border: 2px solid #ccc; 
             font-weight: bold; 
+            font-size: 16px;
             z-index: 999;
             cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
 
-        #action-button:active { background-color: rgba(0,0,0,0.9); }
-        #hide-button:active { background-color: #ddd; }
+        /* ─── 【ご希望】AR撮影モード中のUI（画面固定・フェード対応） ─── */
+        .ar-camera-ui {
+            position: fixed; /* モデルの傍ではなく、画面に対して完全に固定配置 */
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 99999; /* WebXRの最前面に強制表示 */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            /* ふわっとフェードアウト（4秒無操作時）するための設定 */
+            transition: opacity 0.4s ease, transform 0.4s ease, visibility 0.4s;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        /* UIが現れる時のクラス */
+        .ar-camera-ui.active {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        /* 【ご希望】画面左下の「ポーズ切り替え」ボタン */
+        #pose-btn {
+            bottom: 40px;
+            left: 30px;
+            padding: 15px 25px;
+            background-color: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 30px;
+            font-size: 15px;
+        }
+
+        /* 【ご希望】画面真ん中下の「撮影（シャッター）」ボタン */
+        #shutter-btn {
+            bottom: 35px;
+            left: 50%;
+            transform: translateX(-50%) translateY(0); /* 真ん中配置 */
+            width: 75px;
+            height: 75px;
+            background-color: #fff;
+            border: 5px solid rgba(0, 0, 0, 0.2);
+            border-radius: 50%; /* 完全な丸ボタン */
+            color: #333;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        /* 真ん中下のボタンが現れる時の位置補正 */
+        #shutter-btn.active {
+            transform: translateX(-50%) translateY(0) !important;
+        }
+
+        #pose-btn:active { background-color: rgba(0,0,0,0.9); }
+        #shutter-btn:active { background-color: #ddd; transform: translateX(-50%) scale(0.95); }
+
+        /* 【重要】移動枠を出さずにUIを出現させるための、画面全体の透明なタッチセンサーレイヤー */
+        #ar-touch-sensor {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9998; /* UIボタンのすぐ裏に配置 */
+            background-color: rgba(0, 0, 0, 0.005); /* 完全に透明（タップを反応させるため極小の値を設定） */
+            display: none; /* 通常時は非表示。ARモード中だけONになる */
+        }
     </style>
 </head>
 <body>
@@ -110,26 +120,28 @@
     shadow-intensity="1"
 >
     <button slot="ar-button" id="ar-button">AR撮影</button>
-
-    <button slot="hotspot-action" id="action-button" class="ar-ui-btn">ポーズ切り替え</button>
-
-    <button slot="hotspot-hide" id="hide-button" class="ar-ui-btn">👁 ボタンを隠す</button>
-
-    <div slot="hotspot-reviver" id="ui-reviver"></div>
 </model-viewer>
+
+<div id="ar-touch-sensor"></div>
+
+<button id="pose-btn" class="ar-camera-ui">ポーズ切り替え</button>
+
+<button id="shutter-btn" class="ar-camera-ui">📸</button>
+
 
 <script>
     const viewer = document.querySelector('#character-viewer');
-    const actionBtn = document.querySelector('#action-button');
-    const hideBtn = document.querySelector('#hide-button');
-    const reviverZone = document.querySelector('#ui-reviver');
+    const poseBtn = document.querySelector('#pose-btn');
+    const shutterBtn = document.querySelector('#shutter-btn');
+    const touchSensor = document.querySelector('#ar-touch-sensor');
     
     let realIdleName = "";
     let realReactionAnims = [];
     let currentTrackIndex = 0; 
     let isReacting = false;     
+    let uiTimer = null; // 4秒無操作タイマー用
 
-    // 3Dモデル読み込み完了時の自動解析
+    // 3Dモデル読み込み完了時の自動解析（Blenderの名前を自動判別）
     viewer.addEventListener('load', () => {
         const available = viewer.availableAnimations;
         const idleTrack = available.find(name => name.toLowerCase().includes('idle'));
@@ -142,7 +154,7 @@
         }
     });
 
-    // モーション切り替えの処理
+    // モーション切り替え
     function triggerNextAnimation() {
         if (realReactionAnims.length === 0 || isReacting) return; 
         isReacting = true; 
@@ -162,53 +174,117 @@
         }, 2500);
     }
 
-    // ─── UIを完全に隠す（画面外へスライド退避） ───
-    function hideAllUI() {
-        actionBtn.classList.add('is-hidden');
-        hideBtn.classList.add('is-hidden');
-        // ボタンが完全に隠れたら、上部の透明な「復活エリア」を有効化する
-        reviverZone.style.display = 'block';
+    // ─── 【ご希望4】UIを表示・4秒無操作でフェードアウトさせる処理 ───
+    
+    function wakeUpUI() {
+        // タイマーをリセット
+        if (uiTimer) clearTimeout(uiTimer);
+
+        // クラスを追加してUIをふわっと出現させる
+        poseBtn.classList.add('active');
+        shutterBtn.classList.add('active');
+
+        // 4秒間無操作だったら自動でフェードアウト
+        uiTimer = setTimeout(() => {
+            fadeOutUI();
+        }, 4000);
     }
 
-    // ─── UIを画面内に戻す ───
-    function showAllUI() {
-        actionBtn.classList.remove('is-hidden');
-        hideBtn.classList.remove('is-hidden');
-        // UIが戻ったら、復活エリアは片付ける
-        reviverZone.style.display = 'none';
+    function fadeOutUI() {
+        poseBtn.classList.remove('active');
+        shutterBtn.classList.remove('active');
     }
 
-    // ─── ボタンのタッチ処理（イベントの突き抜けを完全に防御 ➔ 移動枠の暴発ゼロ） ───
+    // ─── ARモード（カメラ起動）の状態変化をキャッチ ───
+    viewer.addEventListener('ar-status', (event) => {
+        if (event.detail.status === 'session-started') {
+            // ARカメラが起動したら、透明なタッチセンサーを画面全体に被せる
+            // これにより、画面を操作したときにモデルの移動枠（リング）が出るのを完全にガード！
+            touchSensor.style.display = 'block';
+            
+            // 起動直後はUIを一度表示させる
+            wakeUpUI();
+
+            // WebXRのセッション内でもタッチを監視
+            const xrSession = viewer.xrSession;
+            if (xrSession) {
+                xrSession.addEventListener('select', () => {
+                    // 画面のどこかが操作されたらUIを起こす
+                    wakeUpUI();
+                });
+            }
+        } else if (event.detail.status === 'session-ended') {
+            // ARが終わったらセンサーを消す
+            touchSensor.style.display = 'none';
+            fadeOutUI();
+        }
+    });
+
+    // 【最重要】画面操作（透明レイヤーへのタッチ）が起きたらUIを出現させる
+    // これにより、キャラを直接触らせないため移動枠が暴発しません
+    touchSensor.addEventListener('touchstart', (event) => {
+        event.stopPropagation();
+        wakeUpUI();
+    }, { passive: true });
+
+    touchSensor.addEventListener('click', (event) => {
+        event.stopPropagation();
+        wakeUpUI();
+    });
+
+    // ─── ボタン単体の処理（移動枠の暴発・貫通を完全にガード） ───
 
     // 左下：ポーズ切り替え
-    actionBtn.addEventListener('touchstart', (event) => {
-        event.stopPropagation(); // 3D空間への貫通をガード
+    poseBtn.addEventListener('touchstart', (event) => {
+        event.stopPropagation(); // 3D空間への貫通を絶対に防ぐ
         triggerNextAnimation();
+        wakeUpUI(); // タイマー延長
     }, { passive: true });
-    actionBtn.addEventListener('click', (event) => {
+
+    poseBtn.addEventListener('click', (event) => {
         event.stopPropagation();
         triggerNextAnimation();
+        wakeUpUI();
     });
 
-    // 右下：UIを隠す
-    hideBtn.addEventListener('touchstart', (event) => {
-        event.stopPropagation(); // 3D空間への貫通をガード
-        hideAllUI();
-    }, { passive: true });
-    hideBtn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        hideAllUI();
-    });
+    // 【ご希望2】真ん中下：撮影ボタン（UIを全て消してスクリーンショット）
+    async function executeCaptureSequence() {
+        // 1. まずUIを完全に即時フェードアウト（非表示）にする
+        fadeOutUI();
+        if (uiTimer) clearTimeout(uiTimer);
 
-    // 【最重要】画面最上部の透明な帯（復活エリア）がタップされた時
-    // 直接HTML要素を叩くため、WebXRの移動枠（サークル）を一切暴発させずにUIを復帰可能！
-    reviverZone.addEventListener('touchstart', (event) => {
-        event.stopPropagation(); // 3D空間への貫通をガード（移動枠を絶対に出さない）
-        showAllUI();
-    }, { passive: true });
-    reviverZone.addEventListener('click', (event) => {
+        // 2. UIが完全に消えるのをわずかに待つ（0.15秒）
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        try {
+            // 3. model-viewerの標準機能を使って、UIが一切ない高画質な写真を生成（スクショ撮影）
+            const blob = await viewer.toBlob({ idealAspect: true });
+            const url = URL.createObjectURL(blob);
+            
+            // 4. スマホ内に自動で保存（ダウンロード）させる処理
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `konomi_AR_${new Date().getTime()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error("撮影に失敗しました:", err);
+        }
+
+        // 5. 撮影が終わったら自動的にUIを画面に戻す
+        wakeUpUI();
+    }
+
+    shutterBtn.addEventListener('touchstart', (event) => {
         event.stopPropagation();
-        showAllUI();
+        executeCaptureSequence();
+    }, { passive: true });
+
+    shutterBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        executeCaptureSequence();
     });
 </script>
 
