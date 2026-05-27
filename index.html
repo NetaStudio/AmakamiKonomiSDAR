@@ -6,34 +6,12 @@
     <title>SD甘狼このみＡＲ</title>
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
     <style>
-        body { 
-            margin: 0; 
-            padding: 0; 
-            overflow: hidden; 
-            font-family: sans-serif; 
-        }
-        model-viewer { 
-            width: 100vw; 
-            height: 100vh; 
-            background-color: #f0f0f0; 
-        }
-        
-        /* AR撮影ボタンを左上に固定 */
+        body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; }
+        model-viewer { width: 100vw; height: 100vh; background-color: #f0f0f0; }
         #ar-button {
-            position: absolute; 
-            top: 20px;          
-            left: 20px;         
-            padding: 12px 24px; 
-            background-color: #fff; 
-            border-radius: 25px;
-            border: 2px solid #ccc; 
-            font-weight: bold; 
-            z-index: 999;
-            cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
-        #ar-button:active {
-            background-color: #eee;
+            position: absolute; top: 20px; left: 20px; padding: 12px 24px; 
+            background-color: #fff; border-radius: 25px; border: 2px solid #ccc; 
+            font-weight: bold; z-index: 999; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
     </style>
 </head>
@@ -41,13 +19,13 @@
 
 <model-viewer
     id="character-viewer"
-    src="konomi.glb"
+    src="./konomi.glb"
+    ios-src="./konomi.usdz" 
     alt="SD甘狼このみ"
     ar
-    ar-modes="webxr scene-viewer"
+    ar-modes="webxr scene-viewer quick-look" 
     camera-controls
-    autoplay 
-    animation-name="idle"
+    autoplay
     shadow-intensity="1"
 >
     <button slot="ar-button" id="ar-button">AR撮影</button>
@@ -56,55 +34,60 @@
 <script>
     const viewer = document.querySelector('#character-viewer');
     
-    // モーション名の定義
-    const IDLE_ANIM = "idle";
-    const REACTION_ANIMS = ["wave", "jump"];
-    
-    let currentTrackIndex = 0; // 次に再生するモーションのインデックス
-    let isReacting = false;     // waveやjumpの「特別なアクション」を実行中かどうかのフラグ
+    let animationsList = [];
+    let currentTrackIndex = 0; 
+    let isReacting = false;     
 
-    // アニメーションを順番に切り替える共通処理
-    function triggerNextAnimation() {
-        // すでに wave や jump を再生中（2.5秒以内）なら、連打されても無視する
-        if (isReacting) return; 
+    // モデルが読み込まれたら中身のアニメーションを無条件で取得
+    viewer.addEventListener('load', () => {
+        animationsList = viewer.availableAnimations;
+        console.log("読み込まれたアニメーション:", animationsList);
         
-        isReacting = true; // 特別なアクション開始！
-        const chosenAnim = REACTION_ANIMS[currentTrackIndex];
-        viewer.animationName = chosenAnim;
-
-        // 次回タップ用にインデックスを進める（wave → jump → wave...）
-        currentTrackIndex = (currentTrackIndex + 1) % REACTION_ANIMS.length;
-
-        // 2.5秒後に自動的に待機モーション(idle)に戻し、次のタップを受け付け可能にする
-        setTimeout(() => {
-            viewer.animationName = IDLE_ANIM;
-            isReacting = false; // 特別なアクション終了、タップ受付再開！
-        }, 2500);
-    }
-
-    // ① 通常ブラウザ画面（Web画面）でのキャラタップ判定
-    viewer.addEventListener('click', (event) => {
-        // 左上のARボタンを押したときは、アニメーション切り替えを走らせない
-        if (event.target.closest('#ar-button')) return;
-
-        // タップした位置に3Dモデルがあるか判定
-        const hit = viewer.positionAndNormalAtPixel(event.clientX, event.clientY);
-        if (hit) {
-            triggerNextAnimation();
+        // ファイル内にアニメーションが1つでもあれば、それを初期再生
+        if (animationsList.length > 0) {
+            viewer.animationName = animationsList[0];
+            viewer.play();
         }
     });
 
-    // ② Android WebXR（ARカメラ起動中）空間内でのタップ判定
+    // モーションを強制的に切り替える処理
+    function triggerNextAnimation() {
+        // アニメーションがファイル内に2つ以上なければ切り替え処理をスキップ
+        if (animationsList.length <= 1 || isReacting) return; 
+        
+        isReacting = true; 
+
+        // 次のトラック番号に進める（登録されている数をループ）
+        currentTrackIndex = (currentTrackIndex + 1) % animationsList.length;
+        
+        // 強制的にその番号のアニメーションを再生
+        const chosenAnim = animationsList[currentTrackIndex];
+        viewer.animationName = chosenAnim;
+        viewer.play();
+
+        // 2.5秒後に自動的に最初のモーション（通常はidle）に戻す
+        setTimeout(() => {
+            if (animationsList.length > 0) {
+                viewer.animationName = animationsList[0];
+                viewer.play();
+            }
+            isReacting = false; 
+        }, 2500);
+    }
+
+    // ① 通常ブラウザ画面でのキャラタップ判定
+    viewer.addEventListener('click', (event) => {
+        if (event.target.closest('#ar-button')) return;
+        const hit = viewer.positionAndNormalAtPixel(event.clientX, event.clientY);
+        if (hit) { triggerNextAnimation(); }
+    });
+
+    // ② Android WebXR空間内でのタップ判定
     viewer.addEventListener('ar-status', (event) => {
-        // WebXRによるARセッションが開始されたとき
         if (event.detail.status === 'session-started') {
             const xrSession = viewer.xrSession; 
-            
             if (xrSession) {
-                // AR空間内で画面のどこかをタッチ（セレクト）されたときのイベント
-                xrSession.addEventListener('select', () => {
-                    triggerNextAnimation();
-                });
+                xrSession.addEventListener('select', () => { triggerNextAnimation(); });
             }
         }
     });
