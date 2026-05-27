@@ -6,12 +6,34 @@
     <title>SD甘狼このみＡＲ</title>
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; }
-        model-viewer { width: 100vw; height: 100vh; background-color: #f0f0f0; }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; 
+            font-family: sans-serif; 
+        }
+        model-viewer { 
+            width: 100vw; 
+            height: 100vh; 
+            background-color: #f0f0f0; 
+        }
+        
+        /* AR撮影ボタンを左上に固定 */
         #ar-button {
-            position: absolute; top: 20px; left: 20px; padding: 12px 24px; 
-            background-color: #fff; border-radius: 25px; border: 2px solid #ccc; 
-            font-weight: bold; z-index: 999; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            position: absolute; 
+            top: 20px;          
+            left: 20px;         
+            padding: 12px 24px; 
+            background-color: #fff; 
+            border-radius: 25px;
+            border: 2px solid #ccc; 
+            font-weight: bold; 
+            z-index: 999;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        #ar-button:active {
+            background-color: #eee;
         }
     </style>
 </head>
@@ -38,12 +60,12 @@
     let currentTrackIndex = 0; 
     let isReacting = false;     
 
-    // モデルが読み込まれたら中身のアニメーションを無条件で取得
+    // 3Dモデルが読み込まれたら、中身のアニメーション名を自動で全取得
     viewer.addEventListener('load', () => {
         animationsList = viewer.availableAnimations;
-        console.log("読み込まれたアニメーション:", animationsList);
+        console.log("読み込まれたアニメーション一覧:", animationsList);
         
-        // ファイル内にアニメーションが1つでもあれば、それを初期再生
+        // ファイル内にアニメーションが1つでもあれば、それを最初の待機(idle)として再生
         if (animationsList.length > 0) {
             viewer.animationName = animationsList[0];
             viewer.play();
@@ -52,20 +74,21 @@
 
     // モーションを強制的に切り替える処理
     function triggerNextAnimation() {
-        // アニメーションがファイル内に2つ以上なければ切り替え処理をスキップ
+        // アニメーションがファイル内に2つ以上なければ、タップしても切り替えをスキップ
         if (animationsList.length <= 1 || isReacting) return; 
         
         isReacting = true; 
 
-        // 次のトラック番号に進める（登録されている数をループ）
+        // 次のトラック番号に進める（ファイル内のアニメーション数をループ）
         currentTrackIndex = (currentTrackIndex + 1) % animationsList.length;
         
-        // 強制的にその番号のアニメーションを再生
+        // Blender側の名前に左右されず、その番号のアニメーションを強制再生
         const chosenAnim = animationsList[currentTrackIndex];
+        console.log("モーションを切り替えます:", chosenAnim);
         viewer.animationName = chosenAnim;
         viewer.play();
 
-        // 2.5秒後に自動的に最初のモーション（通常はidle）に戻す
+        // 2.5秒後に自動的に最初のモーション（1番目に登録されている待機モーション）に戻す
         setTimeout(() => {
             if (animationsList.length > 0) {
                 viewer.animationName = animationsList[0];
@@ -75,19 +98,27 @@
         }, 2500);
     }
 
-    // ① 通常ブラウザ画面でのキャラタップ判定
+    // ① 通常ブラウザ画面（Web画面）でのキャラタップ判定
     viewer.addEventListener('click', (event) => {
+        // 左上のARボタンを押したときは、アニメーション切り替えを走らせない
         if (event.target.closest('#ar-button')) return;
+
+        // タップした位置に3Dモデルがあるか判定
         const hit = viewer.positionAndNormalAtPixel(event.clientX, event.clientY);
-        if (hit) { triggerNextAnimation(); }
+        if (hit) {
+            triggerNextAnimation();
+        }
     });
 
-    // ② Android WebXR空間内でのタップ判定
+    // ② Android WebXR（ARカメラ起動中）空間内でのタップ判定
     viewer.addEventListener('ar-status', (event) => {
         if (event.detail.status === 'session-started') {
             const xrSession = viewer.xrSession; 
             if (xrSession) {
-                xrSession.addEventListener('select', () => { triggerNextAnimation(); });
+                // AR空間内で画面がタッチ（セレクト）されたとき、上の切り替え処理を走らせる
+                xrSession.addEventListener('select', () => {
+                    triggerNextAnimation();
+                });
             }
         }
     });
