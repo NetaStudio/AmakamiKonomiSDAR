@@ -20,9 +20,10 @@
 <model-viewer
     id="character-viewer"
     src="konomi.glb"
-    alt="Astronaut model"
+    ios-src="konomi.usdz"
+    alt="SD甘狼このみ"
     ar
-    ar-modes="webxr instant-placement"
+    ar-modes="webxr scene-viewer quick-look"
     camera-controls
     autoplay 
     animation-name="idle"
@@ -38,46 +39,31 @@
     const IDLE_ANIM = "idle";
     
     // タップしたときに「順番に」流したいモーションのリスト
-    // （GLB内の実際のアニメーション名に合わせて書き換えてください）
     const REACTION_ANIMS = [
         "wave",    // 1回目のタップ：手を振る
-        "jump"    // 2回目のタップ：跳ねる
+        "jump"     // 2回目のタップ：跳ねる
     ];
     
     let currentTrackIndex = 0; // 次に再生するモーションの番号
-    let isReacting = false;    // 現在モーション再生中かどうかのフラグ
+    let isReacting = false;     // 現在モーション再生中かどうかのフラグ
 
     viewer.addEventListener('click', (event) => {
-        //モーション再生中なら、タップされても何もせず処理を終了
-        if(isReacting)
-        {
-            return;
-        }
+        // モーション再生中なら、タップされても何もせず処理を終了
+        if(isReacting) return;
 
         // モデルがタップされたか判定
         const hit = viewer.positionAndNormalAtPixel(event.clientX, event.clientY);
         
-        if(hit)
-        {
-            // モーション再生中フラグをONにする
+        if(hit) {
             isReacting = true;
 
-            // リストから現在の順番のモーション名を取得
             const chosenAnim = REACTION_ANIMS[currentTrackIndex];
-
-            // モーションを再生
             viewer.animationName = chosenAnim;
 
-            // 次にタップされたときのために、インデックスを1進める
-            // リストの最後まで行ったら 0 に戻る（ループ処理）
             currentTrackIndex = (currentTrackIndex + 1) % REACTION_ANIMS.length;
 
-            // モーションが終わったら待機（idle）に戻し、次のタップを受け付けるようにする
-            // ※各モーションの長さに合わせてミリ秒（2500 ＝ 2.5秒）を調整してください
             setTimeout(() => {
                 viewer.animationName = IDLE_ANIM;
-                
-                // 再生が終わったので、連打ガードを解除
                 isReacting = false;
             }, 2500); 
         }
