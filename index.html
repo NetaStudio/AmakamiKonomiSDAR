@@ -3,40 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SD甘狼このみ ＡＲ</title>
+    <title>SD甘狼このみＡＲ</title>
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
     <style>
-        model-viewer {
-            width: 100vw;
-            height: 100vh;
+        body { margin: 0; padding: 0; overflow: hidden; }
+        model-viewer { width: 100vw; height: 100vh; background-color: #f0f0f0; }
+        #ar-button {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            padding: 12px 24px; background-color: #fff; border-radius: 25px;
+            border: 2px solid #ccc; font-weight: bold; z-index: 999;
         }
     </style>
 </head>
 <body>
+
 <model-viewer
+    id="character-viewer"
     src="konomi.glb"
-    ios-src="konomi.usdz"
     alt="Astronaut model"
     ar
-    ar-modes="quick-look webxr"
+    ar-modes="webxr instant-placement"
     camera-controls
-    autoplay animation-name="idle"
+    autoplay 
+    animation-name="idle"
     shadow-intensity="1"
-
-    camera-orbit="0deg 80deg 1.5m"
-    max-camera-orbit="auto auto 2m"
-    min-camera-orbit="auto auto 1.25m"
-
-    camera-target="0m 0.2m 0m"
 >
-    <button slot="ar-button" id="ar-button">
-        AR撮影
-    </button>
+    <button slot="ar-button" id="ar-button">AR撮影</button>
 </model-viewer>
+
+<script>
+    const viewer = document.querySelector('#character-viewer');
+    
+    // 通常時の待機モーション
+    const IDLE_ANIM = "idle";
+    
+    // タップしたときに「順番に」流したいモーションのリスト
+    // （GLB内の実際のアニメーション名に合わせて書き換えてください）
+    const REACTION_ANIMS = [
+        "wave",    // 1回目のタップ：手を振る
+        "jump"    // 2回目のタップ：跳ねる
+    ];
+    
+    let currentTrackIndex = 0; // 次に再生するモーションの番号
+    let isReacting = false;    // 現在モーション再生中かどうかのフラグ
+
+    viewer.addEventListener('click', (event) => {
+        //モーション再生中なら、タップされても何もせず処理を終了
+        if(isReacting)
+        {
+            return;
+        }
+
+        // モデルがタップされたか判定
+        const hit = viewer.positionAndNormalAtPixel(event.clientX, event.clientY);
+        
+        if(hit)
+        {
+            // モーション再生中フラグをONにする
+            isReacting = true;
+
+            // リストから現在の順番のモーション名を取得
+            const chosenAnim = REACTION_ANIMS[currentTrackIndex];
+
+            // モーションを再生
+            viewer.animationName = chosenAnim;
+
+            // 次にタップされたときのために、インデックスを1進める
+            // リストの最後まで行ったら 0 に戻る（ループ処理）
+            currentTrackIndex = (currentTrackIndex + 1) % REACTION_ANIMS.length;
+
+            // モーションが終わったら待機（idle）に戻し、次のタップを受け付けるようにする
+            // ※各モーションの長さに合わせてミリ秒（2500 ＝ 2.5秒）を調整してください
+            setTimeout(() => {
+                viewer.animationName = IDLE_ANIM;
+                
+                // 再生が終わったので、連打ガードを解除
+                isReacting = false;
+            }, 2500); 
+        }
+    });
+</script>
+
 </body>
-
 </html>
-
-
-
-
