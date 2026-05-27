@@ -8,10 +8,18 @@
     <style>
         body { margin: 0; padding: 0; overflow: hidden; }
         model-viewer { width: 100vw; height: 100vh; background-color: #f0f0f0; }
+        
+        /* ボタンを左上に固定するスタイル */
         #ar-button {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            padding: 12px 24px; background-color: #fff; border-radius: 25px;
-            border: 2px solid #ccc; font-weight: bold; z-index: 999;
+            position: absolute; 
+            top: 20px;          /* 画面の上端から20px下げる */
+            left: 20px;         /* 画面の左端から20px離す */
+            padding: 12px 24px; 
+            background-color: #fff; 
+            border-radius: 25px;
+            border: 2px solid #ccc; 
+            font-weight: bold; 
+            z-index: 999;
         }
     </style>
 </head>
@@ -40,7 +48,6 @@
     let currentTrackIndex = 0;
     let isReacting = false;
 
-    // モーションを切り替える共通関数
     function triggerNextAnimation() {
         if (isReacting) return;
         
@@ -48,10 +55,8 @@
         const chosenAnim = REACTION_ANIMS[currentTrackIndex];
         viewer.animationName = chosenAnim;
 
-        // 次のモーション用にインデックスを進める
         currentTrackIndex = (currentTrackIndex + 1) % REACTION_ANIMS.length;
 
-        // 2.5秒後に待機モーション(idle)に戻す
         setTimeout(() => {
             viewer.animationName = IDLE_ANIM;
             isReacting = false;
@@ -60,7 +65,6 @@
 
     // ① 通常ブラウザ画面でのタップ判定
     viewer.addEventListener('click', (event) => {
-        // AR起動ボタンを押したときは反応させない
         if (event.target.closest('#ar-button')) return;
 
         const hit = viewer.positionAndNormalAtPixel(event.clientX, event.clientY);
@@ -69,16 +73,12 @@
         }
     });
 
-    // ② 【重要】Android WebXR（ARモード）空間内でのタップ判定
+    // ② Android WebXR（ARモード）空間内でのタップ判定
     viewer.addEventListener('ar-status', (event) => {
-        // ARモードに入った瞬間を検知
         if (event.detail.status === 'session-started') {
-            const xrSession = viewer.xrSession; // WebXRのセッションを取得
-            
+            const xrSession = viewer.xrSession;
             if (xrSession) {
-                // AR空間内で画面がタップ（セレクト）されたときのイベントを追加
                 xrSession.addEventListener('select', () => {
-                    // 移動操作と被って暴発するのを防ぐため、少しだけ遅らせて実行、またはそのまま実行
                     triggerNextAnimation();
                 });
             }
