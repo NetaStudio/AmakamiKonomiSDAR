@@ -20,10 +20,9 @@
 <model-viewer
     id="character-viewer"
     src="konomi.glb"
-    ios-src="konomi.usdz"
     alt="SD甘狼このみ"
     ar
-    ar-modes="webxr scene-viewer quick-look"
+    ar-modes="webxr scene-viewer"
     camera-controls
     autoplay 
     animation-name="idle"
@@ -35,37 +34,54 @@
 <script>
     const viewer = document.querySelector('#character-viewer');
     
-    // 通常時の待機モーション
     const IDLE_ANIM = "idle";
+    const REACTION_ANIMS = ["wave", "jump"];
     
-    // タップしたときに「順番に」流したいモーションのリスト
-    const REACTION_ANIMS = [
-        "wave",    // 1回目のタップ：手を振る
-        "jump"     // 2回目のタップ：跳ねる
-    ];
-    
-    let currentTrackIndex = 0; // 次に再生するモーションの番号
-    let isReacting = false;     // 現在モーション再生中かどうかのフラグ
+    let currentTrackIndex = 0;
+    let isReacting = false;
 
-    viewer.addEventListener('click', (event) => {
-        // モーション再生中なら、タップされても何もせず処理を終了
-        if(isReacting) return;
-
-        // モデルがタップされたか判定
-        const hit = viewer.positionAndNormalAtPixel(event.clientX, event.clientY);
+    // モーションを切り替える共通関数
+    function triggerNextAnimation() {
+        if (isReacting) return;
         
-        if(hit) {
-            isReacting = true;
+        isReacting = true;
+        const chosenAnim = REACTION_ANIMS[currentTrackIndex];
+        viewer.animationName = chosenAnim;
 
-            const chosenAnim = REACTION_ANIMS[currentTrackIndex];
-            viewer.animationName = chosenAnim;
+        // 次のモーション用にインデックスを進める
+        currentTrackIndex = (currentTrackIndex + 1) % REACTION_ANIMS.length;
 
-            currentTrackIndex = (currentTrackIndex + 1) % REACTION_ANIMS.length;
+        // 2.5秒後に待機モーション(idle)に戻す
+        setTimeout(() => {
+            viewer.animationName = IDLE_ANIM;
+            isReacting = false;
+        }, 2500);
+    }
 
-            setTimeout(() => {
-                viewer.animationName = IDLE_ANIM;
-                isReacting = false;
-            }, 2500); 
+    // ① 通常ブラウザ画面でのタップ判定
+    viewer.addEventListener('click', (event) => {
+        // AR起動ボタンを押したときは反応させない
+        if (event.target.closest('#ar-button')) return;
+
+        const hit = viewer.positionAndNormalAtPixel(event.clientX, event.clientY);
+        if (hit) {
+            triggerNextAnimation();
+        }
+    });
+
+    // ② 【重要】Android WebXR（ARモード）空間内でのタップ判定
+    viewer.addEventListener('ar-status', (event) => {
+        // ARモードに入った瞬間を検知
+        if (event.detail.status === 'session-started') {
+            const xrSession = viewer.xrSession; // WebXRのセッションを取得
+            
+            if (xrSession) {
+                // AR空間内で画面がタップ（セレクト）されたときのイベントを追加
+                xrSession.addEventListener('select', () => {
+                    // 移動操作と被って暴発するのを防ぐため、少しだけ遅らせて実行、またはそのまま実行
+                    triggerNextAnimation();
+                });
+            }
         }
     });
 </script>
