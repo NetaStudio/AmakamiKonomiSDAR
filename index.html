@@ -19,7 +19,7 @@
             background-color: #f0f0f0; 
         }
         
-        /* 共通のボタン基本スタイル */
+        /* ボタンの共通スタイル */
         .ar-ui-btn {
             position: absolute;
             font-weight: bold;
@@ -28,21 +28,18 @@
             border: 2px solid rgba(255, 255, 255, 0.6);
             border-radius: 30px;
             z-index: 9999;
-            /* ふわっと表示・非表示を切り替えるアニメーション設定 */
-            transition: opacity 0.3s ease, transform 0.3s ease;
-            opacity: 0; /* 最初は透明 */
-            pointer-events: none; /* 透明な時はタップを通さない */
-            transform: translateY(10px);
+            transition: opacity 0.3s ease; /* ふわっと消える・現れる */
+            opacity: 1; /* 最初は表示状態 */
+            pointer-events: auto;
         }
 
-        /* UIが表示状態になった時のスタイル */
-        .ar-ui-btn.show {
-            opacity: 1;
-            pointer-events: auto; /* 表示されたらタップ可能にする */
-            transform: translateY(0);
+        /* ダブルタップでこのクラスがつくと、完全に消えてタップも効かなくなります */
+        .ar-ui-btn.hide-ui {
+            opacity: 0 !important;
+            pointer-events: none !important;
         }
 
-        /* 左上：AR起動ボタン（これは最初だけ常時表示、AR起動後は各モードのシステムに従う） */
+        /* 左上：AR起動ボタン（これはAR起動前のみ使用） */
         #ar-button {
             position: absolute; 
             top: 20px;          
@@ -57,7 +54,7 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
 
-        /* 【ご要望】左下あたりに配置する「ポーズ切り替え」ボタン */
+        /* 【左下配置】ポーズ切り替えボタン */
         #action-button {
             bottom: 40px;
             left: 20px;
@@ -67,7 +64,7 @@
             font-size: 15px;
         }
 
-        /* 右下あたりに配置する「撮影用（シャッターベース）」ボタン */
+        /* 【右下配置】UIを隠すための案内用ボタン（画面のどこをダブルタップしても隠せますが、分かりやすさのため配置） */
         #shutter-button {
             bottom: 40px;
             right: 20px;
@@ -98,7 +95,7 @@
 
     <button slot="hotspot-action" id="action-button" class="ar-ui-btn">ポーズ切り替え</button>
 
-    <button slot="hotspot-shutter" id="shutter-button" class="ar-ui-btn">📸 撮影する</button>
+    <button slot="hotspot-shutter" id="shutter-button" class="ar-ui-btn">👁 ボタンを隠す</button>
 </model-viewer>
 
 <script>
@@ -110,7 +107,7 @@
     let realReactionAnims = [];
     let currentTrackIndex = 0; 
     let isReacting = false;     
-    let uiTimeoutTimer = null; // UIを自動で消すためのタイマー
+    let uiHidden = false; // UIが隠れているかどうかのフラグ
 
     // 3Dモデル読み込み完了時の自動解析
     viewer.addEventListener('load', () => {
@@ -145,72 +142,68 @@
         }, 2500);
     }
 
-    // ─── UIの表示・非表示（トグル）コントロール ───
-    
-    function showUI() {
-        // タイマーがすでに走っていたら一度リセット
-        if (uiTimeoutTimer) clearTimeout(uiTimeoutTimer);
-
-        // ボタンに「show」クラスをつけてふわっと表示
-        actionBtn.classList.add('show');
-        shutterBtn.classList.add('show');
-
-        // 4秒間なにも操作がない場合、自動的にふわっと非表示にする
-        uiTimeoutTimer = setTimeout(() => {
-            hideUI();
-        }, 4000);
-    }
-
-    function hideUI() {
-        actionBtn.classList.remove('show');
-        shutterBtn.classList.remove('show');
-    }
-
-    // 画面のどこかをタップした時にUIを出す処理（移動枠とケンカしないように調整）
-    // キャラクター本体ではなく、model-viewerの背景部分がタッチされたらUIを出現させる
-    viewer.addEventListener('click', (event) => {
-        // 押した対象がボタン自体ならUIのトグル処理は走らせない
-        if (event.target.closest('.ar-ui-btn') || event.target.closest('#ar-button')) return;
-        
-        // 通常画面、およびWebXRのセッション中での背景タップを検知してUIを出す
-        showUI();
-    });
-
-    // Android WebXR環境用のタッチイベント（背景タップでUI表示）
-    viewer.addEventListener('ar-status', (event) => {
-        if (event.detail.status === 'session-started') {
-            const xrSession = viewer.xrSession; 
-            if (xrSession) {
-                // AR空間での画面全体のタップ（select）でUIを表示
-                xrSession.addEventListener('select', (e) => {
-                    // タップイベントがボタンそのものでない場合のみUIを表示
-                    showUI();
-                });
-            }
+    // ─── UI表示・非表示を完全に切り替える関数（トグル方式） ───
+    function toggleUI() {
+        uiHidden = !uiHidden;
+        if (uiHidden) {
+            actionBtn.classList.add('hide-ui');
+            shutterBtn.classList.add('hide-ui');
+        } else {
+            actionBtn.classList.remove('hide-ui');
+            shutterBtn.classList.remove('hide-ui');
         }
-    });
+    }
 
-    // ─── ボタン単体のタップ処理（突き抜け・枠暴発ガード） ───
+    // ─── ボタン単体のタップ処理（WebXRの移動枠の暴発をガード） ───
 
-    // 左下のポーズ切り替えボタンが押された時
+    // 左下：ポーズ切り替えボタンが押された時
     actionBtn.addEventListener('touchstart', (event) => {
-        event.stopPropagation(); // 3D空間へのタップ突き抜けを完全に防御
+        event.stopPropagation(); // 移動枠が出るシステムへイベントを絶対に渡さない
         triggerNextAnimation();
-        showUI(); // ボタンを押した時もタイマーを4秒に引き延ばす
     }, { passive: true });
 
     actionBtn.addEventListener('click', (event) => {
         event.stopPropagation();
         triggerNextAnimation();
-        showUI();
     });
 
-    // 右下のシャッター（案内）ボタンが押された時（スクショを促す、または標準の撮影機能を邪魔しない設計）
+    // 右下：「ボタンを隠す」が押された時（一発で非表示モードへ）
     shutterBtn.addEventListener('touchstart', (event) => {
         event.stopPropagation();
-        // ボタン自体を瞬間的に隠して、スマホ標準のスクショを撮りやすくする小技
-        hideUI(); 
+        toggleUI();
     }, { passive: true });
+
+    shutterBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        toggleUI();
+    });
+
+    // ─── 【重要】AR空間（画面全体）でのダブルタップによるUI復活・非表示処理 ───
+    let lastTapTime = 0;
+    
+    // Android WebXR環境の背景ダブルタップを検出
+    viewer.addEventListener('ar-status', (event) => {
+        if (event.detail.status === 'session-started') {
+            const xrSession = viewer.xrSession; 
+            if (xrSession) {
+                xrSession.addEventListener('select', (e) => {
+                    const currentTime = new Date().getTime();
+                    const tapLength = currentTime - lastTapTime;
+                    
+                    // 0.3秒以内に連続で画面が叩かれたら「ダブルタップ」と判定
+                    if (tapLength < 300 && tapLength > 0) {
+                        toggleUI(); // UIを切り替える
+                    }
+                    lastTapTime = currentTime;
+                });
+            }
+        }
+    });
+
+    // 通常のブラウザ画面テスト用のダブルクリックイベント
+    viewer.addEventListener('dblclick', () => {
+        toggleUI();
+    });
 </script>
 
 </body>
