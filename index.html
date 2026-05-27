@@ -19,7 +19,7 @@
             background-color: #f0f0f0; 
         }
         
-        /* ボタンの共通スタイル */
+        /* 基本スタイル：ボタンは最初から表示 */
         .ar-ui-btn {
             position: absolute;
             font-weight: bold;
@@ -28,18 +28,56 @@
             border: 2px solid rgba(255, 255, 255, 0.6);
             border-radius: 30px;
             z-index: 9999;
-            transition: opacity 0.3s ease; /* ふわっと消える・現れる */
-            opacity: 1; /* 最初は表示状態 */
-            pointer-events: auto;
+            /* 画面外へスライドして消えるアニメーション設定 */
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
+            opacity: 1;
         }
 
-        /* ダブルタップでこのクラスがつくと、完全に消えてタップも効かなくなります */
-        .ar-ui-btn.hide-ui {
-            opacity: 0 !important;
-            pointer-events: none !important;
+        /* 【左下】ポーズ切り替えボタン */
+        #action-button {
+            bottom: 40px;
+            left: 20px;
+            padding: 14px 24px;
+            background-color: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            font-size: 15px;
+            transform: translateY(0);
         }
 
-        /* 左上：AR起動ボタン（これはAR起動前のみ使用） */
+        /* 【右下】UIを画面外に格納するボタン */
+        #hide-button {
+            bottom: 40px;
+            right: 20px;
+            padding: 14px 24px;
+            background-color: #fff;
+            color: #333;
+            font-size: 15px;
+            transform: translateY(0);
+        }
+
+        /* ─── 録画モード（UI格納時）のスタイル ─── */
+        /* ボタンを画面の下側の外（見えない場所）へ完全にスライド退避させる */
+        .ar-ui-btn.is-hidden {
+            transform: translateY(120px) !important;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* 【新設：復活トリガー】UIが消えている間、画面最上部に配置される「見えない細い帯」 */
+        /* ここを直接タップすることで、モデルの移動枠（リング）を暴発させずにUIを復活させます */
+        #ui-reviver {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 50px; /* 上部の50ピクセル分だけのタッチエリア */
+            background-color: rgba(0, 0, 0, 0.01); /* ほぼ完全な透明（0にするとタップが反応しないため0.01） */
+            z-index: 99999;
+            display: none; /* 通常時は非表示 */
+            cursor: pointer;
+        }
+
+        /* 左上：AR起動ボタン（AR起動前のみ使用） */
         #ar-button {
             position: absolute; 
             top: 20px;          
@@ -54,28 +92,8 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
 
-        /* 【左下配置】ポーズ切り替えボタン */
-        #action-button {
-            bottom: 40px;
-            left: 20px;
-            padding: 14px 24px;
-            background-color: rgba(0, 0, 0, 0.75);
-            color: #fff;
-            font-size: 15px;
-        }
-
-        /* 【右下配置】UIを隠すための案内用ボタン（画面のどこをダブルタップしても隠せますが、分かりやすさのため配置） */
-        #shutter-button {
-            bottom: 40px;
-            right: 20px;
-            padding: 14px 24px;
-            background-color: #fff;
-            color: #333;
-            font-size: 15px;
-        }
-
         #action-button:active { background-color: rgba(0,0,0,0.9); }
-        #shutter-button:active { background-color: #ddd; }
+        #hide-button:active { background-color: #ddd; }
     </style>
 </head>
 <body>
@@ -95,19 +113,21 @@
 
     <button slot="hotspot-action" id="action-button" class="ar-ui-btn">ポーズ切り替え</button>
 
-    <button slot="hotspot-shutter" id="shutter-button" class="ar-ui-btn">👁 ボタンを隠す</button>
+    <button slot="hotspot-hide" id="hide-button" class="ar-ui-btn">👁 ボタンを隠す</button>
+
+    <div slot="hotspot-reviver" id="ui-reviver"></div>
 </model-viewer>
 
 <script>
     const viewer = document.querySelector('#character-viewer');
     const actionBtn = document.querySelector('#action-button');
-    const shutterBtn = document.querySelector('#shutter-button');
+    const hideBtn = document.querySelector('#hide-button');
+    const reviverZone = document.querySelector('#ui-reviver');
     
     let realIdleName = "";
     let realReactionAnims = [];
     let currentTrackIndex = 0; 
     let isReacting = false;     
-    let uiHidden = false; // UIが隠れているかどうかのフラグ
 
     // 3Dモデル読み込み完了時の自動解析
     viewer.addEventListener('load', () => {
@@ -142,67 +162,53 @@
         }, 2500);
     }
 
-    // ─── UI表示・非表示を完全に切り替える関数（トグル方式） ───
-    function toggleUI() {
-        uiHidden = !uiHidden;
-        if (uiHidden) {
-            actionBtn.classList.add('hide-ui');
-            shutterBtn.classList.add('hide-ui');
-        } else {
-            actionBtn.classList.remove('hide-ui');
-            shutterBtn.classList.remove('hide-ui');
-        }
+    // ─── UIを完全に隠す（画面外へスライド退避） ───
+    function hideAllUI() {
+        actionBtn.classList.add('is-hidden');
+        hideBtn.classList.add('is-hidden');
+        // ボタンが完全に隠れたら、上部の透明な「復活エリア」を有効化する
+        reviverZone.style.display = 'block';
     }
 
-    // ─── ボタン単体のタップ処理（WebXRの移動枠の暴発をガード） ───
+    // ─── UIを画面内に戻す ───
+    function showAllUI() {
+        actionBtn.classList.remove('is-hidden');
+        hideBtn.classList.remove('is-hidden');
+        // UIが戻ったら、復活エリアは片付ける
+        reviverZone.style.display = 'none';
+    }
 
-    // 左下：ポーズ切り替えボタンが押された時
+    // ─── ボタンのタッチ処理（イベントの突き抜けを完全に防御 ➔ 移動枠の暴発ゼロ） ───
+
+    // 左下：ポーズ切り替え
     actionBtn.addEventListener('touchstart', (event) => {
-        event.stopPropagation(); // 移動枠が出るシステムへイベントを絶対に渡さない
+        event.stopPropagation(); // 3D空間への貫通をガード
         triggerNextAnimation();
     }, { passive: true });
-
     actionBtn.addEventListener('click', (event) => {
         event.stopPropagation();
         triggerNextAnimation();
     });
 
-    // 右下：「ボタンを隠す」が押された時（一発で非表示モードへ）
-    shutterBtn.addEventListener('touchstart', (event) => {
-        event.stopPropagation();
-        toggleUI();
+    // 右下：UIを隠す
+    hideBtn.addEventListener('touchstart', (event) => {
+        event.stopPropagation(); // 3D空間への貫通をガード
+        hideAllUI();
     }, { passive: true });
-
-    shutterBtn.addEventListener('click', (event) => {
+    hideBtn.addEventListener('click', (event) => {
         event.stopPropagation();
-        toggleUI();
+        hideAllUI();
     });
 
-    // ─── 【重要】AR空間（画面全体）でのダブルタップによるUI復活・非表示処理 ───
-    let lastTapTime = 0;
-    
-    // Android WebXR環境の背景ダブルタップを検出
-    viewer.addEventListener('ar-status', (event) => {
-        if (event.detail.status === 'session-started') {
-            const xrSession = viewer.xrSession; 
-            if (xrSession) {
-                xrSession.addEventListener('select', (e) => {
-                    const currentTime = new Date().getTime();
-                    const tapLength = currentTime - lastTapTime;
-                    
-                    // 0.3秒以内に連続で画面が叩かれたら「ダブルタップ」と判定
-                    if (tapLength < 300 && tapLength > 0) {
-                        toggleUI(); // UIを切り替える
-                    }
-                    lastTapTime = currentTime;
-                });
-            }
-        }
-    });
-
-    // 通常のブラウザ画面テスト用のダブルクリックイベント
-    viewer.addEventListener('dblclick', () => {
-        toggleUI();
+    // 【最重要】画面最上部の透明な帯（復活エリア）がタップされた時
+    // 直接HTML要素を叩くため、WebXRの移動枠（サークル）を一切暴発させずにUIを復帰可能！
+    reviverZone.addEventListener('touchstart', (event) => {
+        event.stopPropagation(); // 3D空間への貫通をガード（移動枠を絶対に出さない）
+        showAllUI();
+    }, { passive: true });
+    reviverZone.addEventListener('click', (event) => {
+        event.stopPropagation();
+        showAllUI();
     });
 </script>
 
