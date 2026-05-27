@@ -11,6 +11,7 @@
             padding: 0; 
             overflow: hidden; 
             font-family: sans-serif; 
+            user-select: none;
         }
         model-viewer { 
             width: 100vw; 
@@ -18,7 +19,30 @@
             background-color: #f0f0f0; 
         }
         
-        /* AR起動前・撮影中 共通の左上「AR撮影」ボタン */
+        /* 共通のボタン基本スタイル */
+        .ar-ui-btn {
+            position: absolute;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            border-radius: 30px;
+            z-index: 9999;
+            /* ふわっと表示・非表示を切り替えるアニメーション設定 */
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            opacity: 0; /* 最初は透明 */
+            pointer-events: none; /* 透明な時はタップを通さない */
+            transform: translateY(10px);
+        }
+
+        /* UIが表示状態になった時のスタイル */
+        .ar-ui-btn.show {
+            opacity: 1;
+            pointer-events: auto; /* 表示されたらタップ可能にする */
+            transform: translateY(0);
+        }
+
+        /* 左上：AR起動ボタン（これは最初だけ常時表示、AR起動後は各モードのシステムに従う） */
         #ar-button {
             position: absolute; 
             top: 20px;          
@@ -33,26 +57,28 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
 
-        /* 【重要】AR撮影中（カメラ画面）でも絶対に消えない右下「ポーズ切り替え」ボタン */
+        /* 【ご要望】左下あたりに配置する「ポーズ切り替え」ボタン */
         #action-button {
-            position: absolute;
-            bottom: 30px;
+            bottom: 40px;
+            left: 20px;
+            padding: 14px 24px;
+            background-color: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            font-size: 15px;
+        }
+
+        /* 右下あたりに配置する「撮影用（シャッターベース）」ボタン */
+        #shutter-button {
+            bottom: 40px;
             right: 20px;
             padding: 14px 24px;
-            background-color: rgba(0, 0, 0, 0.75); /* AR画面で見やすいように暗めの半透明 */
-            color: #fff;
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            border-radius: 30px;
-            font-weight: bold;
+            background-color: #fff;
+            color: #333;
             font-size: 15px;
-            z-index: 9999;
-            cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            display: block; /* 常に表示 */
         }
-        #action-button:active {
-            background-color: rgba(0, 0, 0, 0.9);
-        }
+
+        #action-button:active { background-color: rgba(0,0,0,0.9); }
+        #shutter-button:active { background-color: #ddd; }
     </style>
 </head>
 <body>
@@ -70,28 +96,27 @@
 >
     <button slot="ar-button" id="ar-button">AR撮影</button>
 
-    <button slot="hotspot-action-btn" id="action-button">ポーズ切り替え</button>
+    <button slot="hotspot-action" id="action-button" class="ar-ui-btn">ポーズ切り替え</button>
+
+    <button slot="hotspot-shutter" id="shutter-button" class="ar-ui-btn">📸 撮影する</button>
 </model-viewer>
 
 <script>
     const viewer = document.querySelector('#character-viewer');
     const actionBtn = document.querySelector('#action-button');
+    const shutterBtn = document.querySelector('#shutter-button');
     
     let realIdleName = "";
     let realReactionAnims = [];
     let currentTrackIndex = 0; 
     let isReacting = false;     
+    let uiTimeoutTimer = null; // UIを自動で消すためのタイマー
 
-    // 3Dモデル読み込み完了時にアニメーションを自動解析
+    // 3Dモデル読み込み完了時の自動解析
     viewer.addEventListener('load', () => {
         const available = viewer.availableAnimations;
-        console.log("見つかった全アニメーション名:", available);
-
-        // idleが含まれるものを待機モーションに
         const idleTrack = available.find(name => name.toLowerCase().includes('idle'));
         realIdleName = idleTrack || available[0];
-
-        // idle以外のすべてのモーションをリアクション（wave, jump等）に
         realReactionAnims = available.filter(name => name !== realIdleName);
 
         if (realIdleName) {
@@ -100,22 +125,17 @@
         }
     });
 
-    // モーション切り替えのコア処理
+    // モーション切り替えの処理
     function triggerNextAnimation() {
         if (realReactionAnims.length === 0 || isReacting) return; 
-        
         isReacting = true; 
 
         const chosenAnim = realReactionAnims[currentTrackIndex];
-        console.log("★AR画面からモーション切り替えを実行:", chosenAnim);
-        
         viewer.animationName = chosenAnim;
         viewer.play();
 
-        // 次のタップ用にインデックスを進める
         currentTrackIndex = (currentTrackIndex + 1) % realReactionAnims.length;
 
-        // 2.5秒後に自動的に最初の待機モーション(idle)に戻す
         setTimeout(() => {
             if (realIdleName) {
                 viewer.animationName = realIdleName;
@@ -125,18 +145,72 @@
         }, 2500);
     }
 
-    // AR撮影中（カメラ起動中）のボタンタップを確実に奪取する設定
-    // ※タッチの瞬間に判定を奪い、背後の3D空間（移動枠を出すシステム）への突き抜けを完全に防御します
+    // ─── UIの表示・非表示（トグル）コントロール ───
+    
+    function showUI() {
+        // タイマーがすでに走っていたら一度リセット
+        if (uiTimeoutTimer) clearTimeout(uiTimeoutTimer);
+
+        // ボタンに「show」クラスをつけてふわっと表示
+        actionBtn.classList.add('show');
+        shutterBtn.classList.add('show');
+
+        // 4秒間なにも操作がない場合、自動的にふわっと非表示にする
+        uiTimeoutTimer = setTimeout(() => {
+            hideUI();
+        }, 4000);
+    }
+
+    function hideUI() {
+        actionBtn.classList.remove('show');
+        shutterBtn.classList.remove('show');
+    }
+
+    // 画面のどこかをタップした時にUIを出す処理（移動枠とケンカしないように調整）
+    // キャラクター本体ではなく、model-viewerの背景部分がタッチされたらUIを出現させる
+    viewer.addEventListener('click', (event) => {
+        // 押した対象がボタン自体ならUIのトグル処理は走らせない
+        if (event.target.closest('.ar-ui-btn') || event.target.closest('#ar-button')) return;
+        
+        // 通常画面、およびWebXRのセッション中での背景タップを検知してUIを出す
+        showUI();
+    });
+
+    // Android WebXR環境用のタッチイベント（背景タップでUI表示）
+    viewer.addEventListener('ar-status', (event) => {
+        if (event.detail.status === 'session-started') {
+            const xrSession = viewer.xrSession; 
+            if (xrSession) {
+                // AR空間での画面全体のタップ（select）でUIを表示
+                xrSession.addEventListener('select', (e) => {
+                    // タップイベントがボタンそのものでない場合のみUIを表示
+                    showUI();
+                });
+            }
+        }
+    });
+
+    // ─── ボタン単体のタップ処理（突き抜け・枠暴発ガード） ───
+
+    // 左下のポーズ切り替えボタンが押された時
     actionBtn.addEventListener('touchstart', (event) => {
-        event.stopPropagation();
+        event.stopPropagation(); // 3D空間へのタップ突き抜けを完全に防御
         triggerNextAnimation();
+        showUI(); // ボタンを押した時もタイマーを4秒に引き延ばす
     }, { passive: true });
 
-    // 通常のPCブラウザ等でのテスト用クリックイベント
     actionBtn.addEventListener('click', (event) => {
         event.stopPropagation();
         triggerNextAnimation();
+        showUI();
     });
+
+    // 右下のシャッター（案内）ボタンが押された時（スクショを促す、または標準の撮影機能を邪魔しない設計）
+    shutterBtn.addEventListener('touchstart', (event) => {
+        event.stopPropagation();
+        // ボタン自体を瞬間的に隠して、スマホ標準のスクショを撮りやすくする小技
+        hideUI(); 
+    }, { passive: true });
 </script>
 
 </body>
