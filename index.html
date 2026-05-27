@@ -19,7 +19,7 @@
             background-color: #f0f0f0; 
         }
 
-        /* ─── 【ご希望】AR撮影モード前のUI ─── */
+        /* ─── 【仕様1】AR撮影モード前のUI ─── */
         /* AR撮影ボタンを左上だけに配置 */
         #ar-button {
             position: absolute; 
@@ -36,74 +36,67 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
 
-        /* ─── 【ご希望】AR撮影モード中のUI（画面固定・フェード対応） ─── */
+        /* ─── 【仕様2,3,4】AR撮影モード（カメラ起動中）に最前面に強制表示するUIコンテナ ─── */
+        #ar-overlay-ui-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            /* WEB上のあらゆる要素、WebXRのシステム画面よりも前面に引っ張り出す魔法の数値 */
+            z-index: 2147483647; 
+            pointer-events: none; /* 通常時は下のモデル操作を邪魔しない */
+            display: none; /* AR撮影前は完全に非表示 */
+        }
+
+        /* 4秒無操作でフェードアウトするためのボタン共通スタイル */
         .ar-camera-ui {
-            position: fixed; /* モデルの傍ではなく、画面に対して完全に固定配置 */
+            position: absolute;
             font-weight: bold;
             cursor: pointer;
-            z-index: 99999; /* WebXRの最前面に強制表示 */
             box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-            /* ふわっとフェードアウト（4秒無操作時）するための設定 */
-            transition: opacity 0.4s ease, transform 0.4s ease, visibility 0.4s;
+            transition: opacity 0.4s ease, transform 0.4s ease;
             opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
+            pointer-events: none; /* 消えている時はタップを無効化 */
         }
 
-        /* UIが現れる時のクラス */
+        /* 画面操作があった時に現れるクラス */
         .ar-camera-ui.active {
             opacity: 1;
-            visibility: visible;
-            pointer-events: auto;
+            pointer-events: auto; /* 現れている時だけタップ可能 */
         }
 
-        /* 【ご希望】画面左下の「ポーズ切り替え」ボタン */
+        /* 【仕様3】画面左下の「ポーズ切り替え」ボタン */
         #pose-btn {
             bottom: 40px;
             left: 30px;
             padding: 15px 25px;
-            background-color: rgba(0, 0, 0, 0.75);
+            background-color: rgba(0, 0, 0, 0.8);
             color: #fff;
             border: 2px solid rgba(255, 255, 255, 0.4);
             border-radius: 30px;
             font-size: 15px;
         }
 
-        /* 【ご希望】画面真ん中下の「撮影（シャッター）」ボタン */
+        /* 【仕様2】画面真ん中下の「撮影（シャッター）」ボタン */
         #shutter-btn {
             bottom: 35px;
             left: 50%;
-            transform: translateX(-50%) translateY(0); /* 真ん中配置 */
+            transform: translateX(-50%);
             width: 75px;
             height: 75px;
             background-color: #fff;
             border: 5px solid rgba(0, 0, 0, 0.2);
-            border-radius: 50%; /* 完全な丸ボタン */
+            border-radius: 50%; /* 完全な丸 */
             color: #333;
             font-size: 13px;
             display: flex;
             align-items: center;
             justify-content: center;
         }
-        /* 真ん中下のボタンが現れる時の位置補正 */
-        #shutter-btn.active {
-            transform: translateX(-50%) translateY(0) !important;
-        }
 
-        #pose-btn:active { background-color: rgba(0,0,0,0.9); }
+        #pose-btn:active { background-color: rgba(0,0,0,1); }
         #shutter-btn:active { background-color: #ddd; transform: translateX(-50%) scale(0.95); }
-
-        /* 【重要】移動枠を出さずにUIを出現させるための、画面全体の透明なタッチセンサーレイヤー */
-        #ar-touch-sensor {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 9998; /* UIボタンのすぐ裏に配置 */
-            background-color: rgba(0, 0, 0, 0.005); /* 完全に透明（タップを反応させるため極小の値を設定） */
-            display: none; /* 通常時は非表示。ARモード中だけONになる */
-        }
     </style>
 </head>
 <body>
@@ -122,26 +115,26 @@
     <button slot="ar-button" id="ar-button">AR撮影</button>
 </model-viewer>
 
-<div id="ar-touch-sensor"></div>
+<div id="ar-overlay-ui-container">
+    <button id="pose-btn" class="ar-camera-ui">ポーズ切り替え</button>
 
-<button id="pose-btn" class="ar-camera-ui">ポーズ切り替え</button>
-
-<button id="shutter-btn" class="ar-camera-ui">📸</button>
+    <button id="shutter-btn" class="ar-camera-ui">📸</button>
+</div>
 
 
 <script>
     const viewer = document.querySelector('#character-viewer');
+    const uiContainer = document.querySelector('#ar-overlay-ui-container');
     const poseBtn = document.querySelector('#pose-btn');
     const shutterBtn = document.querySelector('#shutter-btn');
-    const touchSensor = document.querySelector('#ar-touch-sensor');
     
     let realIdleName = "";
     let realReactionAnims = [];
     let currentTrackIndex = 0; 
     let isReacting = false;     
-    let uiTimer = null; // 4秒無操作タイマー用
+    let uiTimer = null; 
 
-    // 3Dモデル読み込み完了時の自動解析（Blenderの名前を自動判別）
+    // 3Dモデル読み込み完了時の自動判別
     viewer.addEventListener('load', () => {
         const available = viewer.availableAnimations;
         const idleTrack = available.find(name => name.toLowerCase().includes('idle'));
@@ -174,17 +167,15 @@
         }, 2500);
     }
 
-    // ─── 【ご希望4】UIを表示・4秒無操作でフェードアウトさせる処理 ───
+    // ─── 【仕様4】UIフェードイン・4秒無操作フェードアウト ───
     
     function wakeUpUI() {
-        // タイマーをリセット
         if (uiTimer) clearTimeout(uiTimer);
 
-        // クラスを追加してUIをふわっと出現させる
         poseBtn.classList.add('active');
         shutterBtn.classList.add('active');
 
-        // 4秒間無操作だったら自動でフェードアウト
+        // 4秒間、次の操作がなければ自動フェードアウト
         uiTimer = setTimeout(() => {
             fadeOutUI();
         }, 4000);
@@ -195,73 +186,52 @@
         shutterBtn.classList.remove('active');
     }
 
-    // ─── ARモード（カメラ起動）の状態変化をキャッチ ───
+    // ─── WebXR（ARカメラ画面）の内部へUIレイヤーを強制的に割り込ませる処理 ───
     viewer.addEventListener('ar-status', (event) => {
         if (event.detail.status === 'session-started') {
-            // ARカメラが起動したら、透明なタッチセンサーを画面全体に被せる
-            // これにより、画面を操作したときにモデルの移動枠（リング）が出るのを完全にガード！
-            touchSensor.style.display = 'block';
-            
-            // 起動直後はUIを一度表示させる
+            // AndroidのARカメラが起動した瞬間、最前面UIコンテナをONにする
+            uiContainer.style.display = 'block';
             wakeUpUI();
 
-            // WebXRのセッション内でもタッチを監視
+            // WebXRのカメラ画面に対するタッチ入力を直接監視する（最重要）
             const xrSession = viewer.xrSession;
             if (xrSession) {
-                xrSession.addEventListener('select', () => {
-                    // 画面のどこかが操作されたらUIを起こす
+                // AR画面のどこかをタッチ（操作）したらUIがふわっと現れる（仕様4）
+                xrSession.addEventListener('selectstart', () => {
                     wakeUpUI();
                 });
             }
         } else if (event.detail.status === 'session-ended') {
-            // ARが終わったらセンサーを消す
-            touchSensor.style.display = 'none';
+            // AR画面を閉じたらUIコンテナを完全に片付ける
+            uiContainer.style.display = 'none';
             fadeOutUI();
         }
     });
 
-    // 【最重要】画面操作（透明レイヤーへのタッチ）が起きたらUIを出現させる
-    // これにより、キャラを直接触らせないため移動枠が暴発しません
-    touchSensor.addEventListener('touchstart', (event) => {
-        event.stopPropagation();
-        wakeUpUI();
-    }, { passive: true });
-
-    touchSensor.addEventListener('click', (event) => {
-        event.stopPropagation();
-        wakeUpUI();
-    });
-
-    // ─── ボタン単体の処理（移動枠の暴発・貫通を完全にガード） ───
+    // ─── ボタン単体のタッチ処理（移動枠の暴発・貫通を100%ガード） ───
 
     // 左下：ポーズ切り替え
     poseBtn.addEventListener('touchstart', (event) => {
-        event.stopPropagation(); // 3D空間への貫通を絶対に防ぐ
+        event.stopPropagation(); // 3D空間へのタップ貫通を防ぎ、移動枠（リング）を出さない
         triggerNextAnimation();
         wakeUpUI(); // タイマー延長
     }, { passive: true });
 
-    poseBtn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        triggerNextAnimation();
-        wakeUpUI();
-    });
-
-    // 【ご希望2】真ん中下：撮影ボタン（UIを全て消してスクリーンショット）
+    // 真ん中下：撮影ボタン（UIを全て消して高画質スクショを自動保存）
     async function executeCaptureSequence() {
-        // 1. まずUIを完全に即時フェードアウト（非表示）にする
+        // 1. UIをその瞬間に即時フェードアウト（非表示）にする
         fadeOutUI();
         if (uiTimer) clearTimeout(uiTimer);
 
-        // 2. UIが完全に消えるのをわずかに待つ（0.15秒）
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // 2. UIが完全に消えるのをわずかに待つ（0.2秒）
+        await new Promise(resolve => setTimeout(resolve, 200));
 
         try {
-            // 3. model-viewerの標準機能を使って、UIが一切ない高画質な写真を生成（スクショ撮影）
+            // 3. UIが一切ない、このみちゃんと現実世界だけの綺麗な高画質画像を撮影
             const blob = await viewer.toBlob({ idealAspect: true });
             const url = URL.createObjectURL(blob);
             
-            // 4. スマホ内に自動で保存（ダウンロード）させる処理
+            // 4. スマホ内に自動保存（ダウンロード）
             const a = document.createElement('a');
             a.href = url;
             a.download = `konomi_AR_${new Date().getTime()}.png`;
@@ -273,19 +243,14 @@
             console.error("撮影に失敗しました:", err);
         }
 
-        // 5. 撮影が終わったら自動的にUIを画面に戻す
+        // 5. 撮影完了後、自動的にUIを画面に復帰させる
         wakeUpUI();
     }
 
     shutterBtn.addEventListener('touchstart', (event) => {
-        event.stopPropagation();
+        event.stopPropagation(); // 移動枠の暴発をガード
         executeCaptureSequence();
     }, { passive: true });
-
-    shutterBtn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        executeCaptureSequence();
-    });
 </script>
 
 </body>
