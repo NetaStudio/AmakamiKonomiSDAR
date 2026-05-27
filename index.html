@@ -132,6 +132,7 @@
     let currentTrackIndex = 0; 
     let isReacting = false;     
     let uiTimer = null; 
+    let isCaptureLock = false; // シャッターによる強制非表示中かどうかのフラグ
 
     // モデル読み込み完了時のアニメーション解析
     viewer.addEventListener('load', () => {
@@ -168,6 +169,9 @@
 
     // ─── 【仕様4】UIフェードイン・4秒無操作フェードアウト ───
     function wakeUpUI() {
+        // シャッターボタンによる「強制非表示ロック」がかかっている間は、画面操作されても絶対にUIを起こさない
+        if (isCaptureLock) return;
+
         if (uiTimer) clearTimeout(uiTimer);
 
         poseBtn.classList.add('active');
@@ -187,15 +191,17 @@
     // ARカメラ起動時の状態変化
     viewer.addEventListener('ar-status', (event) => {
         if (event.detail.status === 'session-started') {
+            isCaptureLock = false;
             overlayUI.style.display = 'block';
             wakeUpUI();
         } else if (event.detail.status === 'session-ended') {
             overlayUI.style.display = 'none';
             fadeOutUI();
+            isCaptureLock = false;
         }
     });
 
-    // ─── 【仕様4・修正】暴発を防ぎつつ、タップやドラッグ移動でUIを確実に復活させる ───
+    // ─── 画面操作（タップやスワイプ）でUIを確実に復活させる監視 ───
     
     // 画面に指が触れた瞬間（タップ）にUIを起こす
     window.addEventListener('touchstart', (event) => {
@@ -221,28 +227,22 @@
         wakeUpUI(); // タイマー延長
     }, { passive: true });
 
-    // 真ん中下：撮影ボタン
-    async function executeCaptureSequence() {
+    // 【仕様2・最終解決版】真ん中下：撮影用UI完全消去シャッター
+    function executeCaptureSequence() {
+        if (isCaptureLock) return;
+        isCaptureLock = true; // 復活ブロックのロックをかける
+
         // 1. UIをその瞬間に即時非表示（透明）にする
         fadeOutUI();
         if (uiTimer) clearTimeout(uiTimer);
 
-        // 2. フェードアウトのアニメーション完了をわずかに待つ（0.2秒）
-        await new Promise(resolve => setTimeout(resolve, 200));
-
-        try {
-            // 3. 【真っ黒回避】model-viewer公式のARスクリーンショット専用メソッドを使用して保存
-            // これにより、現実のカメラ背景とモデルが合成された正しい画像が書き出されます
-            viewer.takeScreenshot();
-            
-        } catch (err) {
-            console.error("撮影に失敗しました:", err);
-        }
-
-        // 4. 撮影処理の呼び出し後、自動的にUIを画面に復帰させる（少し長めのディレイ）
+        // 2. 7秒間、画面を「完全なUIなし状態」に固定。
+        // この間にユーザーがスマホ標準の機能でスクショや動画の撮影を行います。
+        // 画面を動かしたりモデルを操作しても、この7秒間は絶対にボタンが暴発して戻ってきません。
         setTimeout(() => {
-            wakeUpUI();
-        }, 1000);
+            isCaptureLock = false; // ロックを解除
+            wakeUpUI(); // 7秒経ったらUIを自動復帰
+        }, 7000);
     }
 
     shutterBtn.addEventListener('touchstart', (event) => {
