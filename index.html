@@ -53,7 +53,7 @@
             font-weight: bold;
             cursor: pointer;
             box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-            transition: opacity 0.4s ease, transform 0.4s ease, visibility 0.4s;
+            transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
             opacity: 0;
             visibility: hidden;
             pointer-events: auto; /* ボタン自体は個別にタップを有効化 */
@@ -110,6 +110,7 @@
     camera-controls
     autoplay
     shadow-intensity="1"
+    preserve-drawing-buffer
 >
     <button slot="ar-button" id="ar-button">AR撮影</button>
 
@@ -132,7 +133,7 @@
     let currentTrackIndex = 0; 
     let isReacting = false;     
     let uiTimer = null; 
-    let isCaptureLock = false; // シャッターによる強制非表示中かどうかのフラグ
+    let isCapturing = false; // 撮影中連打防止フラグ
 
     // モデル読み込み完了時のアニメーション解析
     viewer.addEventListener('load', () => {
@@ -169,8 +170,8 @@
 
     // ─── 【仕様4】UIフェードイン・4秒無操作フェードアウト ───
     function wakeUpUI() {
-        // シャッターボタンによる「強制非表示ロック」がかかっている間は、画面操作されても絶対にUIを起こさない
-        if (isCaptureLock) return;
+        // 撮影シークエンスの最中だけはタイマー起動を一時ブロック
+        if (isCapturing) return;
 
         if (uiTimer) clearTimeout(uiTimer);
 
@@ -191,64 +192,80 @@
     // ARカメラ起動時の状態変化
     viewer.addEventListener('ar-status', (event) => {
         if (event.detail.status === 'session-started') {
-            isCaptureLock = false;
             overlayUI.style.display = 'block';
             wakeUpUI();
         } else if (event.detail.status === 'session-ended') {
             overlayUI.style.display = 'none';
             fadeOutUI();
-            isCaptureLock = false;
         }
     });
 
-    // ─── 画面操作（タップやスワイプ）でUIを確実に復活させる監視 ───
+    // ─── 【仕様4】画面操作（タップやスワイプ）でUIを確実に復活させる ───
     
-    // 画面に指が触れた瞬間（タップ）にUIを起こす
+    // 画面に指が触れた瞬間（タップ）
     window.addEventListener('touchstart', (event) => {
-        // 右上の「✕」ボタンを避ける処理
+        // 右上の「✕」ボタン周辺のタップ時はUI起動をスルーさせて終了を最優先する
         if (event.touches[0].clientX > window.innerWidth * 0.8 && event.touches[0].clientY < 60) {
             return; 
         }
         wakeUpUI();
     }, { passive: true });
 
-    // 画面上で指を動かしたとき（モデルの移動・回転・サイズ変更操作など）にUIを起こす
+    // 画面上で指を動かしたとき（モデルの操作など）
     window.addEventListener('touchmove', () => {
         wakeUpUI();
     }, { passive: true });
 
 
-    // ─── ボタン単体のタッチ処理（イベントの突き抜けによる移動枠の暴発を完璧に防御） ───
+    // ─── ボタン単体のタッチ処理（イベントの貫通・暴発を100%ガード。passive: falseで徹底防御） ───
 
     // 左下：ポーズ切り替え
     poseBtn.addEventListener('touchstart', (event) => {
+        event.preventDefault();
         event.stopPropagation(); // 3D空間への貫通を完全に阻止（足元のリングを出さない）
         triggerNextAnimation();
         wakeUpUI(); // タイマー延長
-    }, { passive: true });
+    }, { passive: false });
 
-    // 【仕様2・最終解決版】真ん中下：撮影用UI完全消去シャッター
-    function executeCaptureSequence() {
-        if (isCaptureLock) return;
-        isCaptureLock = true; // 復活ブロックのロックをかける
+    // 【仕様2】真ん中下：高速撮影＆UI自動復帰シークエンス
+    async function executeCaptureSequence() {
+        if (isCapturing) return;
+        isCapturing = true;
 
         // 1. UIをその瞬間に即時非表示（透明）にする
         fadeOutUI();
         if (uiTimer) clearTimeout(uiTimer);
 
-        // 2. 7秒間、画面を「完全なUIなし状態」に固定。
-        // この間にユーザーがスマホ標準の機能でスクショや動画の撮影を行います。
-        // 画面を動かしたりモデルを操作しても、この7秒間は絶対にボタンが暴発して戻ってきません。
-        setTimeout(() => {
-            isCaptureLock = false; // ロックを解除
-            wakeUpUI(); // 7秒経ったらUIを自動復帰
-        }, 7000);
+        // 2. 画面上のUIが消えるのをほんのわずかに待つ（0.15秒）
+        await new Promise(resolve => setTimeout(resolve, 150));
+
+        try {
+            // 3. preserve-drawing-bufferの恩恵により、モデルがバッチリ写ったBlobをバックグラウンド生成
+            const blob = await viewer.toBlob({ idealAspect: true, mimeType: 'image/png' });
+            const url = URL.createObjectURL(blob);
+            
+            // 4. サイレント自動ダウンロード（Androidの画面をササッと通過させます）
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `konomi_AR_${new Date().getTime()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error("撮影に失敗しました:", err);
+        }
+
+        // 5. ダウンロード命令が走ったら、ユーザーを待たせることなく即座にUIを画面に復帰
+        isCapturing = false;
+        wakeUpUI();
     }
 
     shutterBtn.addEventListener('touchstart', (event) => {
+        event.preventDefault();
         event.stopPropagation(); // 3D空間への貫通を阻止（足元のリングを出さない）
         executeCaptureSequence();
-    }, { passive: true });
+    }, { passive: false });
 </script>
 
 </body>
