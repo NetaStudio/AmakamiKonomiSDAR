@@ -34,33 +34,26 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
 
-        /* ─── モデル選択UI ─── */
-        #model-selector {
+        /* ─── プルダウン式モデル選択UI（左下配置） ─── */
+        #model-select-container {
             position: absolute;
-            bottom: 40px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 10px;
+            bottom: 30px;
+            left: 20px;
             z-index: 999;
         }
 
-        .model-btn {
-            padding: 12px 20px;
-            background-color: #fff;
+        #model-select {
+            padding: 12px 24px;
+            font-size: 15px;
+            font-weight: bold;
             border: 2px solid #ccc;
             border-radius: 20px;
-            font-weight: bold;
-            font-size: 14px;
+            background-color: #fff;
+            color: #333;
             cursor: pointer;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            transition: all 0.2s ease;
-        }
-
-        .model-btn.active {
-            background-color: #333;
-            color: #fff;
-            border-color: #333;
+            outline: none;
+            /* 独自の矢印デザインにしたい場合はここを調整してください */
         }
 
         /* ─── WebXR（Android専用）カメラ起動中のUIレイヤー ─── */
@@ -91,7 +84,7 @@
             visibility: visible;
         }
 
-        /* 左下：ポーズ切り替え */
+        /* 左下：ポーズ切り替え（AR起動時用） */
         #pose-btn {
             bottom: 40px;
             left: 30px;
@@ -145,10 +138,12 @@
     </div>
 </model-viewer>
 
-<div id="model-selector">
-    <button class="model-btn active" data-glb="./konomi_01.glb" data-usdz="./konomi_01.usdz">モデル 1</button>
-    <button class="model-btn" data-glb="./konomi_02.glb" data-usdz="./konomi_02.usdz">モデル 2</button>
-    <button class="model-btn" data-glb="./konomi_03.glb" data-usdz="./konomi_03.usdz">モデル 3</button>
+<div id="model-select-container">
+    <select id="model-select">
+        <option value="1" data-glb="./konomi_01.glb" data-usdz="./konomi_01.usdz">モデル 1</option>
+        <option value="2" data-glb="./konomi_02.glb" data-usdz="./konomi_02.usdz">モデル 2</option>
+        <option value="3" data-glb="./konomi_03.glb" data-usdz="./konomi_03.usdz">モデル 3</option>
+    </select>
 </div>
 
 <script>
@@ -156,8 +151,8 @@
     const overlayUI = document.querySelector('#ar-camera-overlay');
     const poseBtn = document.querySelector('#pose-btn');
     const shutterBtn = document.querySelector('#shutter-btn');
-    const modelSelector = document.querySelector('#model-selector');
-    const modelBtns = document.querySelectorAll('.model-btn');
+    const modelSelectContainer = document.querySelector('#model-select-container');
+    const modelSelect = document.querySelector('#model-select');
     
     let realIdleName = "";
     let realReactionAnims = [];
@@ -166,22 +161,19 @@
     let uiTimer = null; 
     let isManualHidden = false; 
 
-    // ─── モデル切り替え処理 ───
-    modelBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            // 見た目のアクティブ状態を更新
-            modelBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+    // ─── プルダウン切り替え処理 ───
+    modelSelect.addEventListener('change', (event) => {
+        // 選択されたoption要素を取得
+        const selectedOption = event.target.selectedOptions[0];
 
-            // data属性からファイルパスを取得してmodel-viewerを更新
-            viewer.src = btn.dataset.glb;
-            viewer.iosSrc = btn.dataset.usdz;
+        // data属性からファイルパスを取得してmodel-viewerにセット
+        viewer.src = selectedOption.dataset.glb;
+        viewer.iosSrc = selectedOption.dataset.usdz;
 
-            // 新しいモデルが読み込まれたらアニメーションリストを再取得するため、変数をリセット
-            realIdleName = "";
-            realReactionAnims = [];
-            currentTrackIndex = 0;
-        });
+        // アニメーション情報の初期化
+        realIdleName = "";
+        realReactionAnims = [];
+        currentTrackIndex = 0;
     });
 
     // モデル読み込み完了時の処理
@@ -239,11 +231,11 @@
         if (event.detail.status === 'session-started') {
             isManualHidden = false;
             overlayUI.style.display = 'block';
-            modelSelector.style.display = 'none'; // AR中はモデル選択UIを隠す
+            modelSelectContainer.style.display = 'none'; // AR中はプルダウンを隠す
             wakeUpUI();
         } else if (event.detail.status === 'session-ended') {
             overlayUI.style.display = 'none';
-            modelSelector.style.display = 'flex'; // AR終了時にモデル選択UIを再表示
+            modelSelectContainer.style.display = 'block'; // AR終了時にプルダウンを再表示
             fadeOutUI();
         }
     });
