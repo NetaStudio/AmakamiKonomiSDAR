@@ -34,8 +34,36 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
 
+        /* ─── モデル選択UI ─── */
+        #model-selector {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 999;
+        }
+
+        .model-btn {
+            padding: 12px 20px;
+            background-color: #fff;
+            border: 2px solid #ccc;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: all 0.2s ease;
+        }
+
+        .model-btn.active {
+            background-color: #333;
+            color: #fff;
+            border-color: #333;
+        }
+
         /* ─── WebXR（Android専用）カメラ起動中のUIレイヤー ─── */
-        /* ※iOSはApple純正のARアプリが起動するため、このレイヤーは無視されApple標準のシャッターが使われます */
         #ar-camera-overlay {
             position: absolute;
             top: 0;
@@ -100,8 +128,8 @@
 
 <model-viewer
     id="character-viewer"
-    src="./konomi.glb"
-    ios-src="./konomi.usdz" 
+    src="./konomi_01.glb"
+    ios-src="./konomi_01.usdz" 
     alt="SD甘狼このみ"
     ar
     ar-modes="webxr" 
@@ -117,22 +145,46 @@
     </div>
 </model-viewer>
 
+<div id="model-selector">
+    <button class="model-btn active" data-glb="./konomi_01.glb" data-usdz="./konomi_01.usdz">モデル 1</button>
+    <button class="model-btn" data-glb="./konomi_02.glb" data-usdz="./konomi_02.usdz">モデル 2</button>
+    <button class="model-btn" data-glb="./konomi_03.glb" data-usdz="./konomi_03.usdz">モデル 3</button>
+</div>
 
 <script>
     const viewer = document.querySelector('#character-viewer');
     const overlayUI = document.querySelector('#ar-camera-overlay');
     const poseBtn = document.querySelector('#pose-btn');
     const shutterBtn = document.querySelector('#shutter-btn');
+    const modelSelector = document.querySelector('#model-selector');
+    const modelBtns = document.querySelectorAll('.model-btn');
     
     let realIdleName = "";
     let realReactionAnims = [];
     let currentTrackIndex = 0; 
     let isReacting = false;     
     let uiTimer = null; 
-    
-    // 手動でUIを隠している状態を判定するフラグ
     let isManualHidden = false; 
 
+    // ─── モデル切り替え処理 ───
+    modelBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // 見た目のアクティブ状態を更新
+            modelBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // data属性からファイルパスを取得してmodel-viewerを更新
+            viewer.src = btn.dataset.glb;
+            viewer.iosSrc = btn.dataset.usdz;
+
+            // 新しいモデルが読み込まれたらアニメーションリストを再取得するため、変数をリセット
+            realIdleName = "";
+            realReactionAnims = [];
+            currentTrackIndex = 0;
+        });
+    });
+
+    // モデル読み込み完了時の処理
     viewer.addEventListener('load', () => {
         const available = viewer.availableAnimations;
         const idleTrack = available.find(name => name.toLowerCase().includes('idle'));
@@ -166,14 +218,12 @@
 
     // ─── UI表示コントロール ───
     function wakeUpUI() {
-        // シャッターボタンで手動で隠している間は、モデルを動かしてもUIを復活させない
         if (isManualHidden) return;
 
         if (uiTimer) clearTimeout(uiTimer);
         poseBtn.classList.add('active');
         shutterBtn.classList.add('active');
 
-        // 4秒無操作で自動フェードアウト
         uiTimer = setTimeout(() => {
             fadeOutUI();
         }, 4000);
@@ -189,23 +239,22 @@
         if (event.detail.status === 'session-started') {
             isManualHidden = false;
             overlayUI.style.display = 'block';
+            modelSelector.style.display = 'none'; // AR中はモデル選択UIを隠す
             wakeUpUI();
         } else if (event.detail.status === 'session-ended') {
             overlayUI.style.display = 'none';
+            modelSelector.style.display = 'flex'; // AR終了時にモデル選択UIを再表示
             fadeOutUI();
         }
     });
 
     // ─── 画面タッチ・スワイプ監視 ───
     window.addEventListener('touchstart', (event) => {
-        // もし手動でUIを隠していたなら、画面のどこかをタップした瞬間に復活させる
         if (isManualHidden) {
             isManualHidden = false;
             wakeUpUI();
             return;
         }
-
-        // 右上の「✕」ボタンを避ける
         if (event.touches[0].clientX > window.innerWidth * 0.8 && event.touches[0].clientY < 60) {
             return; 
         }
@@ -216,10 +265,7 @@
         wakeUpUI();
     }, { passive: true });
 
-
     // ─── ボタン単体のタッチ処理 ───
-
-    // ポーズ切り替え
     poseBtn.addEventListener('touchstart', (event) => {
         event.preventDefault();
         event.stopPropagation(); 
@@ -227,19 +273,12 @@
         wakeUpUI(); 
     }, { passive: false });
 
-    // 【重要】シャッターボタン（UIを完全に消し去る機能）
     shutterBtn.addEventListener('touchstart', (event) => {
         event.preventDefault();
         event.stopPropagation(); 
-        
-        // フラグを立ててUIを強制非表示にする
         isManualHidden = true;
         fadeOutUI();
         if (uiTimer) clearTimeout(uiTimer);
-
-        // ※ このボタンが押された後は、ユーザーがスマホの標準機能で自由に
-        // スクリーンショットや画面録画を行います。
-        // 撮影が終わって画面をポンとタップすれば、上の touchstart イベントでUIが復活します。
     }, { passive: false });
 
 </script>
