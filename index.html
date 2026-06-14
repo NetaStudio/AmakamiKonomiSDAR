@@ -53,7 +53,6 @@
             cursor: pointer;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
             outline: none;
-            /* 独自の矢印デザインにしたい場合はここを調整してください */
         }
 
         /* ─── WebXR（Android専用）カメラ起動中のUIレイヤー ─── */
@@ -96,7 +95,7 @@
             font-size: 15px;
         }
 
-        /* 真ん中下：UI消去用シャッター（撮影準備ボタン） */
+        /* 真ん中下：UI消去用シャッター */
         #shutter-btn {
             bottom: 35px;
             left: 50%;
@@ -128,8 +127,10 @@
     ar-modes="webxr" 
     camera-controls
     autoplay
-    exposure="1.5"
-    tone-mapping="commerce"
+    
+    <!-- 💡 トーンマッピングをnoneにして、暗い放射テクスチャの発色・彩度を100%引き出す -->
+    tone-mapping="none"
+    exposure="1.0"
     shadow-intensity="1"
 >
     <button slot="ar-button" id="ar-button">AR撮影</button>
@@ -142,11 +143,11 @@
 
 <div id="model-select-container">
     <select id="model-select">
-        <option value="1" data-glb="./konomi_01.glb" data-usdz="./konomi_01.usdz">立ち</option>
-        <option value="2" data-glb="./konomi_02.glb" data-usdz="./konomi_02.usdz">ガオー</option>
-        <option value="3" data-glb="./konomi_03.glb" data-usdz="./konomi_03.usdz">モデル 3</option>
-        <option value="4" data-glb="./konomi_04.glb" data-usdz="./konomi_04.usdz">モデル 4</option>
-        <option value="5" data-glb="./konomi_05.glb" data-usdz="./konomi_05.usdz">踊り</option>
+        <option value="0" data-glb="./konomi_01.glb" data-usdz="./konomi_01.usdz">立ち</option>
+        <option value="1" data-glb="./konomi_02.glb" data-usdz="./konomi_02.usdz">ガオー</option>
+        <option value="2" data-glb="./konomi_03.glb" data-usdz="./konomi_03.usdz">モデル 3</option>
+        <option value="3" data-glb="./konomi_04.glb" data-usdz="./konomi_04.usdz">モデル 4</option>
+        <option value="4" data-glb="./konomi_05.glb" data-usdz="./konomi_05.usdz">踊り</option>
     </select>
 </div>
 
@@ -158,58 +159,43 @@
     const modelSelectContainer = document.querySelector('#model-select-container');
     const modelSelect = document.querySelector('#model-select');
     
-    let realIdleName = "";
-    let realReactionAnims = [];
-    let currentTrackIndex = 0; 
-    let isReacting = false;     
     let uiTimer = null; 
     let isManualHidden = false; 
 
-    // ─── プルダウン切り替え処理 ───
+    // ─── モデルデータの配列化（AR中のボタン連動用） ───
+    const modelData = [
+        { name: "立ち", glb: "./konomi_01.glb", usdz: "./konomi_01.usdz" },
+        { name: "ガオー", glb: "./konomi_02.glb", usdz: "./konomi_02.usdz" },
+        { name: "モデル 3", glb: "./konomi_03.glb", usdz: "./konomi_03.usdz" },
+        { name: "モデル 4", glb: "./konomi_04.glb", usdz: "./konomi_04.usdz" },
+        { name: "踊り", glb: "./konomi_05.glb", usdz: "./konomi_05.usdz" }
+    ];
+    let currentIndex = 0;
+
+    // モデルを変更する共通関数
+    function changeModel(index) {
+        currentIndex = index;
+        const model = modelData[currentIndex];
+        
+        viewer.src = model.glb;
+        viewer.iosSrc = model.usdz;
+        
+        // プルダウンの選択状態も連動させる
+        modelSelect.value = currentIndex;
+        poseBtn.innerText = `ポーズ: ${model.name}`;
+    }
+
+    // プルダウン切り替え処理（通常画面用）
     modelSelect.addEventListener('change', (event) => {
-        // 選択されたoption要素を取得
-        const selectedOption = event.target.selectedOptions[0];
-
-        // data属性からファイルパスを取得してmodel-viewerにセット
-        viewer.src = selectedOption.dataset.glb;
-        viewer.iosSrc = selectedOption.dataset.usdz;
-
-        // アニメーション情報の初期化
-        realIdleName = "";
-        realReactionAnims = [];
-        currentTrackIndex = 0;
+        const index = parseInt(event.target.value, 10);
+        changeModel(index);
     });
 
-    // モデル読み込み完了時の処理
-    viewer.addEventListener('load', () => {
-        const available = viewer.availableAnimations;
-        const idleTrack = available.find(name => name.toLowerCase().includes('idle'));
-        realIdleName = idleTrack || available[0];
-        realReactionAnims = available.filter(name => name !== realIdleName);
-
-        if (realIdleName) {
-            viewer.animationName = realIdleName;
-            viewer.play();
-        }
-    });
-
-    function triggerNextAnimation() {
-        if (realReactionAnims.length === 0 || isReacting) return; 
-        isReacting = true; 
-
-        const chosenAnim = realReactionAnims[currentTrackIndex];
-        viewer.animationName = chosenAnim;
-        viewer.play();
-
-        currentTrackIndex = (currentTrackIndex + 1) % realReactionAnims.length;
-
-        setTimeout(() => {
-            if (realIdleName) {
-                viewer.animationName = realIdleName;
-                viewer.play();
-            }
-            isReacting = false; 
-        }, 2500);
+    // AR起動中の「ポーズ切り替え」ボタン処理（Android WebXR用）
+    // ファイルそのものを次のポーズ（ファイル）に切り替える仕様に最適化
+    function triggerNextModel() {
+        const nextIndex = (currentIndex + 1) % modelData.length;
+        changeModel(nextIndex);
     }
 
     // ─── UI表示コントロール ───
@@ -235,11 +221,13 @@
         if (event.detail.status === 'session-started') {
             isManualHidden = false;
             overlayUI.style.display = 'block';
-            modelSelectContainer.style.display = 'none'; // AR中はプルダウンを隠す
+            modelSelectContainer.style.display = 'none'; 
+            // ボタンの初期テキストを現在のポーズ名に設定
+            poseBtn.innerText = `ポーズ: ${modelData[currentIndex].name}`;
             wakeUpUI();
         } else if (event.detail.status === 'session-ended') {
             overlayUI.style.display = 'none';
-            modelSelectContainer.style.display = 'block'; // AR終了時にプルダウンを再表示
+            modelSelectContainer.style.display = 'block'; 
             fadeOutUI();
         }
     });
@@ -265,7 +253,7 @@
     poseBtn.addEventListener('touchstart', (event) => {
         event.preventDefault();
         event.stopPropagation(); 
-        triggerNextAnimation();
+        triggerNextModel(); // 次のファイルへ切り替え
         wakeUpUI(); 
     }, { passive: false });
 
