@@ -83,18 +83,6 @@
             visibility: visible;
         }
 
-        /* 左下：アニメーション切り替え（AR起動時用） */
-        #pose-btn {
-            bottom: 40px;
-            left: 30px;
-            padding: 15px 25px;
-            background-color: rgba(0, 0, 0, 0.8);
-            color: #fff;
-            border: 2px solid rgba(255, 255, 255, 0.4);
-            border-radius: 30px;
-            font-size: 15px;
-        }
-
         /* 真ん中下：UI消去用シャッター */
         #shutter-btn {
             bottom: 35px;
@@ -112,7 +100,6 @@
             justify-content: center;
         }
 
-        #pose-btn:active { background-color: rgba(0,0,0,1); }
         #shutter-btn:active { background-color: #ddd; transform: translateX(-50%) scale(0.95); }
     </style>
 </head>
@@ -134,7 +121,6 @@
     <button slot="ar-button" id="ar-button">AR撮影</button>
 
     <div id="ar-camera-overlay">
-        <button id="pose-btn" class="ar-camera-ui">アニメーション切り替え</button>
         <button id="shutter-btn" class="ar-camera-ui">📸</button>
     </div>
 </model-viewer>
@@ -152,7 +138,6 @@
 <script>
     const viewer = document.querySelector('#character-viewer');
     const overlayUI = document.querySelector('#ar-camera-overlay');
-    const poseBtn = document.querySelector('#pose-btn');
     const shutterBtn = document.querySelector('#shutter-btn');
     const modelSelectContainer = document.querySelector('#model-select-container');
     const modelSelect = document.querySelector('#model-select');
@@ -160,7 +145,7 @@
     let uiTimer = null; 
     let isManualHidden = false; 
 
-    // ─── モデルデータの配列化（AR中のボタン連動用） ───
+    // ─── モデルデータの配列化 ───
     const modelData = [
         { name: "立ち", glb: "./konomi_01.glb", usdz: "./konomi_01.usdz" },
         { name: "ガオー", glb: "./konomi_02.glb", usdz: "./konomi_02.usdz" },
@@ -180,14 +165,12 @@
         
         // プルダウンの選択状態も連動させる
         modelSelect.value = currentIndex;
-        poseBtn.innerText = `再生中: ${model.name}`;
     }
 
-    // 💡【追加】ファイルが読み込まれたら、そのファイルに仕込まれているアニメーションを自動再生する
+    // ファイルが読み込まれたら、そのファイルに仕込まれているアニメーションを自動再生する
     viewer.addEventListener('load', () => {
         const available = viewer.availableAnimations;
         if (available.length > 0) {
-            // ファイル内の最初のアニメーションをセットして再生
             viewer.animationName = available[0];
             viewer.play();
         }
@@ -199,18 +182,11 @@
         changeModel(index);
     });
 
-    // AR起動中の「アニメーション切り替え」ボタン処理（Android WebXR用）
-    function triggerNextModel() {
-        const nextIndex = (currentIndex + 1) % modelData.length;
-        changeModel(nextIndex);
-    }
-
     // ─── UI表示コントロール ───
     function wakeUpUI() {
         if (isManualHidden) return;
 
         if (uiTimer) clearTimeout(uiTimer);
-        poseBtn.classList.add('active');
         shutterBtn.classList.add('active');
 
         uiTimer = setTimeout(() => {
@@ -219,7 +195,6 @@
     }
 
     function fadeOutUI() {
-        poseBtn.classList.remove('active');
         shutterBtn.classList.remove('active');
     }
 
@@ -229,7 +204,6 @@
             isManualHidden = false;
             overlayUI.style.display = 'block';
             modelSelectContainer.style.display = 'none'; 
-            poseBtn.innerText = `再生中: ${modelData[currentIndex].name}`;
             wakeUpUI();
         } else if (event.detail.status === 'session-ended') {
             overlayUI.style.display = 'none';
@@ -238,7 +212,7 @@
         }
     });
 
-    // ─── 画面タッチ・スワイプ監視 ───
+    // ─── 画面タッチ監視 ───
     window.addEventListener('touchstart', (event) => {
         if (isManualHidden) {
             isManualHidden = false;
@@ -256,13 +230,6 @@
     }, { passive: true });
 
     // ─── ボタン単体のタッチ処理 ───
-    poseBtn.addEventListener('touchstart', (event) => {
-        event.preventDefault();
-        event.stopPropagation(); 
-        triggerNextModel(); // 次のファイルへ切り替え
-        wakeUpUI(); 
-    }, { passive: false });
-
     shutterBtn.addEventListener('touchstart', (event) => {
         event.preventDefault();
         event.stopPropagation(); 
