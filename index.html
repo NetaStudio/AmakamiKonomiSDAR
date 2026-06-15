@@ -34,7 +34,7 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
 
-        /* ─── プルダウン式モデル選択UI（左下配置） ─── */
+        /* ─── 通常画面用のプルダウンメニュー ─── */
         #model-select-container {
             position: absolute;
             bottom: 30px;
@@ -54,53 +54,6 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
             outline: none;
         }
-
-        /* ─── WebXR（Android専用）カメラ起動中のUIレイヤー ─── */
-        #ar-camera-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: none; 
-            z-index: 10;
-            pointer-events: none; 
-        }
-
-        .ar-camera-ui {
-            position: absolute;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-            transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: auto; 
-        }
-
-        .ar-camera-ui.active {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        /* 真ん中下：UI消去用シャッター */
-        #shutter-btn {
-            bottom: 35px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 75px;
-            height: 75px;
-            background-color: #fff;
-            border: 5px solid rgba(0, 0, 0, 0.2);
-            border-radius: 50%;
-            color: #333;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #shutter-btn:active { background-color: #ddd; transform: translateX(-50%) scale(0.95); }
     </style>
 </head>
 <body>
@@ -111,7 +64,7 @@
     ios-src="./konomi_01.usdz" 
     alt="SD甘狼このみ"
     ar
-    ar-modes="webxr" 
+    ar-modes="scene-viewer" 
     camera-controls
     autoplay
     tone-mapping="none"
@@ -119,10 +72,6 @@
     shadow-intensity="1"
 >
     <button slot="ar-button" id="ar-button">AR撮影</button>
-
-    <div id="ar-camera-overlay">
-        <button id="shutter-btn" class="ar-camera-ui">📸</button>
-    </div>
 </model-viewer>
 
 <div id="model-select-container">
@@ -137,15 +86,8 @@
 
 <script>
     const viewer = document.querySelector('#character-viewer');
-    const overlayUI = document.querySelector('#ar-camera-overlay');
-    const shutterBtn = document.querySelector('#shutter-btn');
-    const modelSelectContainer = document.querySelector('#model-select-container');
     const modelSelect = document.querySelector('#model-select');
     
-    let uiTimer = null; 
-    let isManualHidden = false; 
-
-    // ─── モデルデータの配列化 ───
     const modelData = [
         { name: "立ち", glb: "./konomi_01.glb", usdz: "./konomi_01.usdz" },
         { name: "ガオー", glb: "./konomi_02.glb", usdz: "./konomi_02.usdz" },
@@ -153,21 +95,13 @@
         { name: "モデル 4", glb: "./konomi_04.glb", usdz: "./konomi_04.usdz" },
         { name: "踊り", glb: "./konomi_05.glb", usdz: "./konomi_05.usdz" }
     ];
-    let currentIndex = 0;
 
-    // モデルを変更する共通関数
     function changeModel(index) {
-        currentIndex = index;
-        const model = modelData[currentIndex];
-        
+        const model = modelData[index];
         viewer.src = model.glb;
         viewer.iosSrc = model.usdz;
-        
-        // プルダウンの選択状態も連動させる
-        modelSelect.value = currentIndex;
     }
 
-    // ファイルが読み込まれたら、そのファイルに仕込まれているアニメーションを自動再生する
     viewer.addEventListener('load', () => {
         const available = viewer.availableAnimations;
         if (available.length > 0) {
@@ -176,68 +110,10 @@
         }
     });
 
-    // プルダウン切り替え処理（通常画面用）
     modelSelect.addEventListener('change', (event) => {
         const index = parseInt(event.target.value, 10);
         changeModel(index);
     });
-
-    // ─── UI表示コントロール ───
-    function wakeUpUI() {
-        if (isManualHidden) return;
-
-        if (uiTimer) clearTimeout(uiTimer);
-        shutterBtn.classList.add('active');
-
-        uiTimer = setTimeout(() => {
-            fadeOutUI();
-        }, 4000);
-    }
-
-    function fadeOutUI() {
-        shutterBtn.classList.remove('active');
-    }
-
-    // AR起動検知
-    viewer.addEventListener('ar-status', (event) => {
-        if (event.detail.status === 'session-started') {
-            isManualHidden = false;
-            overlayUI.style.display = 'block';
-            modelSelectContainer.style.display = 'none'; 
-            wakeUpUI();
-        } else if (event.detail.status === 'session-ended') {
-            overlayUI.style.display = 'none';
-            modelSelectContainer.style.display = 'block'; 
-            fadeOutUI();
-        }
-    });
-
-    // ─── 画面タッチ監視 ───
-    window.addEventListener('touchstart', (event) => {
-        if (isManualHidden) {
-            isManualHidden = false;
-            wakeUpUI();
-            return;
-        }
-        if (event.touches[0].clientX > window.innerWidth * 0.8 && event.touches[0].clientY < 60) {
-            return; 
-        }
-        wakeUpUI();
-    }, { passive: true });
-
-    window.addEventListener('touchmove', () => {
-        wakeUpUI();
-    }, { passive: true });
-
-    // ─── ボタン単体のタッチ処理 ───
-    shutterBtn.addEventListener('touchstart', (event) => {
-        event.preventDefault();
-        event.stopPropagation(); 
-        isManualHidden = true;
-        fadeOutUI();
-        if (uiTimer) clearTimeout(uiTimer);
-    }, { passive: false });
-
 </script>
 
 </body>
