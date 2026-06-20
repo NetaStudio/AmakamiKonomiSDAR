@@ -2,7 +2,6 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <!-- スマホの画面幅に合わせて自動調整 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SD甘狼このみＡＲ</title>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
@@ -35,7 +34,6 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
 
-        /* 通常画面用のプルダウンメニュー */
         #model-select-container {
             position: absolute;
             bottom: 30px;
@@ -71,12 +69,11 @@
     tone-mapping="none"
     exposure="1.5"
     shadow-intensity="1"
-    scale="0.5 0.5 0.5"
+    scale="0.3 0.3 0.3"
 >
     <button slot="ar-button" id="ar-button">AR撮影</button>
 </model-viewer>
 
-<!-- ポーズを切り替えるプルダウンメニュー -->
 <div id="model-select-container">
     <select id="model-select">
         <option value="0">立ち</option>
@@ -87,16 +84,11 @@
     </select>
 </div>
 
-
 <script>
-    //HTML内の特定の要素をプログラムから触れるように取得
     const viewer = document.querySelector('#character-viewer');
     const modelSelect = document.querySelector('#model-select');
-    
-    //現在選択されているモデルのインデックス
     let currentSelectedIndex = 0;
 
-    //ポーズ５種類
     const modelData = [
         { name: "立ち", glb: "./konomi_01.glb", usdz: "./konomi_01.usdz" },
         { name: "ガオー", glb: "./konomi_02.glb", usdz: "./konomi_02.usdz" },
@@ -105,49 +97,42 @@
         { name: "ダンス", glb: "./konomi_05.glb", usdz: "./konomi_05.usdz" }
     ];
 
-    //選択されたポーズに応じて、表示する3Dモデルのファイルを切り替える
     function changeModel(index) {
-        currentSelectedIndex = index;
+        currentSelectedIndex = index; 
         const model = modelData[index];
         viewer.src = model.glb;
         viewer.iosSrc = model.usdz;
+        
+        // モデルを切り替えたら、カメラの位置と注視点を更新
+        adjustCamera();
     }
 
-    // モデルを浮かせたり戻したりする処理を実行
-    function adjustModelHeight() {
-        const sceneSymbol = Object.getOwnPropertySymbols(viewer).find(s => s.description === 'scene');
-        if (sceneSymbol) {
-            const scene = viewer[sceneSymbol];
-            if (scene && scene.model) {
-                if (currentSelectedIndex === 3) {
-                    scene.model.position.y = 0.1;
-                } else {
-                    scene.model.position.y = 0;
-                }
-            }
+    //カメラの注視点と位置を調整
+    function adjustCamera() {
+        if (currentSelectedIndex === 3) {
+            //注視点を低くする
+            viewer.cameraTarget = "0m 0.3m 0m";
+
+            //カメラ自体の位置を低くする
+            viewer.cameraOrbit = "0deg 85deg auto";
+            
+        } else {
+            //それ以外の時は、モデルのサイズに合わせてすべて自動計算
+            viewer.cameraTarget = "auto auto auto";
+            viewer.cameraOrbit = "auto auto auto";
         }
     }
 
-    //3Dモデルファイルがブラウザ上に新しく読み込み完了したときに実行
     viewer.addEventListener('load', () => {
-        //読み込まれたモデルにアニメーションが含まれているか確認して再生
         const available = viewer.availableAnimations;
         if (available.length > 0) {
             viewer.animationName = available[0];
-            //アニメーションの再生を開始
             viewer.play();
         }
-
-        //わずかに遅らせて高さ調整を呼び出す
-        setTimeout(() => {
-            adjustModelHeight();
-        }, 50);
     });
 
-    //ユーザーがプルダウンメニューの選択を変更したときに実行
     modelSelect.addEventListener('change', (event) => {
         const index = parseInt(event.target.value, 10);
-        //変換した番号を使い、上で作ったモデル切り替えて実行
         changeModel(index);
     });
 </script>
