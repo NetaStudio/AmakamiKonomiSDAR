@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <!-- スマホの画面幅に合わせて自動調整 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SD甘狼このみＡＲ</title>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
@@ -34,7 +35,7 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
 
-        /* ─── 通常画面用のプルダウンメニュー ─── */
+        /* 通常画面用のプルダウンメニュー */
         #model-select-container {
             position: absolute;
             bottom: 30px;
@@ -74,6 +75,7 @@
     <button slot="ar-button" id="ar-button">AR撮影</button>
 </model-viewer>
 
+<!-- ポーズを切り替えるプルダウンメニュー -->
 <div id="model-select-container">
     <select id="model-select">
         <option value="0">立ち</option>
@@ -84,10 +86,12 @@
     </select>
 </div>
 
+
 <script>
+    //HTML内の特定の要素をプログラムから触れるように取得
     const viewer = document.querySelector('#character-viewer');
     const modelSelect = document.querySelector('#model-select');
-    
+    //ポーズ５種類
     const modelData = [
         { name: "立ち", glb: "./konomi_01.glb", usdz: "./konomi_01.usdz" },
         { name: "ガオー", glb: "./konomi_02.glb", usdz: "./konomi_02.usdz" },
@@ -96,22 +100,24 @@
         { name: "ダンス", glb: "./konomi_05.glb", usdz: "./konomi_05.usdz" }
     ];
 
+    //選択されたポーズに応じて、表示する3Dモデルのファイルを切り替える
     function changeModel(index) {
         const model = modelData[index];
         viewer.src = model.glb;
         viewer.iosSrc = model.usdz;
     }
 
+    //3Dモデルファイルがブラウザ上に新しく読み込み完了したときに実行
     viewer.addEventListener('load', () => {
-        const available = viewer.availableAnimations;
-        if (available.length > 0) {
-            viewer.animationName = available[0];
-            viewer.play();
-        }
+        viewer.animationName = available[0];
+        //アニメーションの再生を開始
+        viewer.play();
     });
 
+    //ユーザーがプルダウンメニューの選択を変更したときに実行
     modelSelect.addEventListener('change', (event) => {
         const index = parseInt(event.target.value, 10);
+        //変換した番号を使い、上で作ったモデル切り替えて実行
         changeModel(index);
     });
 </script>
