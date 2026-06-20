@@ -71,6 +71,7 @@
     tone-mapping="none"
     exposure="1.5"
     shadow-intensity="1"
+    scale="0.8 0.8 0.8"
 >
     <button slot="ar-button" id="ar-button">AR撮影</button>
 </model-viewer>
@@ -91,6 +92,10 @@
     //HTML内の特定の要素をプログラムから触れるように取得
     const viewer = document.querySelector('#character-viewer');
     const modelSelect = document.querySelector('#model-select');
+    
+    //現在選択されているモデルのインデックス
+    let currentSelectedIndex = 0;
+
     //ポーズ５種類
     const modelData = [
         { name: "立ち", glb: "./konomi_01.glb", usdz: "./konomi_01.usdz" },
@@ -102,16 +107,41 @@
 
     //選択されたポーズに応じて、表示する3Dモデルのファイルを切り替える
     function changeModel(index) {
+        currentSelectedIndex = index;
         const model = modelData[index];
         viewer.src = model.glb;
         viewer.iosSrc = model.usdz;
     }
 
+    // モデルを浮かせたり戻したりする処理を実行
+    function adjustModelHeight() {
+        const sceneSymbol = Object.getOwnPropertySymbols(viewer).find(s => s.description === 'scene');
+        if (sceneSymbol) {
+            const scene = viewer[sceneSymbol];
+            if (scene && scene.model) {
+                if (currentSelectedIndex === 3) {
+                    scene.model.position.y = 0.3;
+                } else {
+                    scene.model.position.y = 0;
+                }
+            }
+        }
+    }
+
     //3Dモデルファイルがブラウザ上に新しく読み込み完了したときに実行
     viewer.addEventListener('load', () => {
-        viewer.animationName = available[0];
-        //アニメーションの再生を開始
-        viewer.play();
+        //読み込まれたモデルにアニメーションが含まれているか確認して再生
+        const available = viewer.availableAnimations;
+        if (available.length > 0) {
+            viewer.animationName = available[0];
+            //アニメーションの再生を開始
+            viewer.play();
+        }
+
+        //わずかに遅らせて高さ調整を呼び出す
+        setTimeout(() => {
+            adjustModelHeight();
+        }, 50);
     });
 
     //ユーザーがプルダウンメニューの選択を変更したときに実行
