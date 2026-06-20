@@ -69,7 +69,7 @@
     tone-mapping="none"
     exposure="1.5"
     shadow-intensity="1"
-    scale="0.3 0.3 0.3"
+    camera-orbit="0deg 75deg 130%"
 >
     <button slot="ar-button" id="ar-button">AR撮影</button>
 </model-viewer>
@@ -111,15 +111,15 @@
     function adjustCamera() {
         if (currentSelectedIndex === 3) {
             //注視点を低くする
-            viewer.cameraTarget = "0m 0.3m 0m";
+            viewer.cameraTarget = "0m 1m 0m";
 
             //カメラ自体の位置を低くする
-            viewer.cameraOrbit = "0deg 85deg auto";
+            viewer.cameraOrbit = "0deg 85deg 130%";
             
         } else {
             //それ以外の時は、モデルのサイズに合わせてすべて自動計算
             viewer.cameraTarget = "auto auto auto";
-            viewer.cameraOrbit = "auto auto auto";
+            viewer.cameraOrbit = "0deg 75deg 130%";
         }
     }
 
