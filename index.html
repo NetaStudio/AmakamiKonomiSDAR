@@ -63,7 +63,7 @@
     ios-src="./konomi_01.usdz" 
     alt="SD甘狼このみ"
     ar
-    ar-modes="scene-viewer" 
+    ar-modes="scene-viewer quick-look" 
     camera-controls
     autoplay
     tone-mapping="none"
@@ -97,6 +97,16 @@
         { name: "ダンス", glb: "./konomi_05.glb", usdz: "./konomi_05.usdz" }
     ];
 
+    //ページを開いた直後に、他の3Dモデルを裏側でダウンロードしておく
+    window.addEventListener('load', () => {
+        modelData.forEach((model, index) => {
+            //1番以降を裏でキャッシュに保存
+            if (index > 0) {
+                fetch(model.glb).catch(() => {});
+            }
+        });
+    });
+    
     function changeModel(index) {
         currentSelectedIndex = index; 
         const model = modelData[index];
