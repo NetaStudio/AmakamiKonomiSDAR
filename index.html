@@ -70,6 +70,7 @@
     exposure="1.5"
     shadow-intensity="1"
     field-of-view="40deg"
+    max-camera-orbit="auto auto 200%"
 >
     <button slot="ar-button" id="ar-button">AR撮影</button>
 </model-viewer>
@@ -88,6 +89,7 @@
     const viewer = document.querySelector('#character-viewer');
     const modelSelect = document.querySelector('#model-select');
     let currentSelectedIndex = 0;
+    let isPreloaded = false;
 
     const modelData = [
         { name: "立ち", glb: "./konomi_01.glb", usdz: "./konomi_01.usdz" },
