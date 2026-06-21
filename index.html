@@ -70,7 +70,6 @@
     exposure="1.5"
     shadow-intensity="1"
     field-of-view="40deg"
-    max-camera-orbit="auto auto 200%"
 >
     <button slot="ar-button" id="ar-button">AR撮影</button>
 </model-viewer>
@@ -98,23 +97,13 @@
         { name: "ダンス", glb: "./konomi_05.glb", usdz: "./konomi_05.usdz" }
     ];
 
-    //ページを開いた直後に、他の3Dモデルを裏側でダウンロードしておく
-    window.addEventListener('load', () => {
-        modelData.forEach((model, index) => {
-            //1番以降を裏でキャッシュに保存
-            if (index > 0) {
-                fetch(model.glb).catch(() => {});
-            }
-        });
-    });
-    
     function changeModel(index) {
         currentSelectedIndex = index; 
         const model = modelData[index];
         viewer.src = model.glb;
         viewer.iosSrc = model.usdz;
         
-        // モデルを切り替えたら、カメラの位置と注視点を更新
+        //モデルを切り替えたら、カメラの位置と注視点を更新
         adjustCamera();
     }
 
@@ -123,7 +112,6 @@
         if (currentSelectedIndex === 3) {
             //注視点を低くする
             viewer.cameraTarget = "0m 0.2m 0m";
-
             //カメラ自体の位置を低くする
             viewer.cameraOrbit = "0deg 85deg 140%";
             
@@ -135,10 +123,23 @@
     }
 
     viewer.addEventListener('load', () => {
+        //アニメーションの再生
         const available = viewer.availableAnimations;
         if (available.length > 0) {
             viewer.animationName = available[0];
             viewer.play();
+        }
+
+        //最初の立ちポーズが完全に表示されてから、2秒後に他のデータをダウンロード
+        if (!isPreloaded) {
+            isPreloaded = true;
+            setTimeout(() => {
+                modelData.forEach((model, index) => {
+                    if (index > 0) {
+                        fetch(model.glb).catch(() => {});
+                    }
+                });
+            }, 2000);
         }
     });
 
