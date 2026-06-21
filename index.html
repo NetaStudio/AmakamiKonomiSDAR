@@ -111,15 +111,15 @@
     function adjustCamera() {
         if (currentSelectedIndex === 3) {
             //注視点を低くする
-            viewer.cameraTarget = "0m 0.2m 0m";
+            viewer.cameraTarget = "0m 0.1m 0m";
 
             //カメラ自体の位置を低くする
-            viewer.cameraOrbit = "0deg 85deg 150%";
+            viewer.cameraOrbit = "0deg 90deg 150%";
             
         } else {
             //それ以外の時は、モデルのサイズに合わせてすべて自動計算
-            viewer.cameraTarget = "0m 0.4m 0m";
-            viewer.cameraOrbit = "0deg 75deg 150%";
+            viewer.cameraTarget = "0m 0m 0m";
+            viewer.cameraOrbit = "0deg 100deg 150%";
         }
     }
 
